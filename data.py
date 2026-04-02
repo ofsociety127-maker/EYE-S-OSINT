@@ -1,10 +1,4 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-FSOCIETY OSINT SUITE - ULTIMATE FREE EDITION
-Complete Email & Social Media OSINT | Accurate Intelligence Gathering
-Version: 7.0 - The Dark Army Arsenal
-"""
+
 
 import os
 import sys
@@ -66,7 +60,7 @@ class Colors:
 class TextEffects:
     BOLD = '\033[1m'
     RESET = '\033[0m'
-
+#ONLY MODIFY THIS IF U KNWO WHAT U ARE DOING!
 # ============================================================================
 # SAVES
 # ============================================================================
